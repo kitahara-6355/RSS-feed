@@ -1,0 +1,9 @@
+# For Google Sheets integration
+gspread
+google-auth-oauthlib
+
+# For parsing RSS feeds
+feedparser
+
+# For sending web requests (to ntfy.sh)
+requests
