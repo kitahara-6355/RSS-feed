@@ -1,0 +1,60 @@
+# This is the name of the workflow, which you'll see in the "Actions" tab of your GitHub repository.
+name: Check RSS Feeds
+
+on:
+  # This section defines when the workflow will run.
+  schedule:
+    # Runs every hour, at the start of the hour.
+    # The format is based on cron syntax. '0 * * * *' means "at minute 0 of every hour of every day".
+    - cron: '0 * * * *'
+
+  # This allows you to run the workflow manually from the Actions tab.
+  # It's useful for testing.
+  workflow_dispatch:
+
+jobs:
+  # A workflow run is made up of one or more jobs that can run sequentially or in parallel.
+  check-feeds:
+    # The type of machine to run the job on. For our purpose, the standard Ubuntu is perfect.
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Check out the repository code
+      # This downloads your code (main.py, requirements.txt, etc.) into the runner.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 2: Set up the Python environment
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Step 3: Install the required Python libraries
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Step 4: Create the credentials.json file from a GitHub Secret
+      # This securely writes the content of your service account key into a file.
+      # The secret 'GCP_CREDENTIALS_JSON' will be set by you in the repository settings.
+      - name: Create credentials file from secret
+        run: echo "${{ secrets.GCP_CREDENTIALS_JSON }}" > credentials.json
+        # This command ensures the file is created in the root of the project directory.
+
+      # Step 5: Create the config.ini file from other GitHub Secrets
+      # This builds the configuration file using the secure values you provide.
+      - name: Create config file from secrets
+        run: |
+          echo "[GSPREAD]" > config.ini
+          echo "SERVICE_ACCOUNT_FILE = credentials.json" >> config.ini
+          echo "SHEET_NAME = ${{ secrets.GSPREAD_SHEET_NAME }}" >> config.ini
+          echo "" >> config.ini
+          echo "[NTFY]" >> config.ini
+          echo "TOPIC = ${{ secrets.NTFY_TOPIC }}" >> config.ini
+          echo "" >> config.ini
+          echo "[RSS_FEEDS]" >> config.ini
+          echo "URLS = ${{ secrets.RSS_URLS }}" >> config.ini
+
+      # Step 6: Run the main Python script
+      - name: Run the RSS notifier script
+        run: python rss_notifier/main.py
