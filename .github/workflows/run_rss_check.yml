@@ -34,17 +34,14 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      # Step 4: Create the credentials.json file from a GitHub Secret
-      # This securely writes the content of your service account key into a file.
-      # The secret 'GCP_CREDENTIALS_JSON' will be set by you in the repository settings.
-      - name: Create credentials file from secret
-        run: echo "${{ secrets.GCP_CREDENTIALS_JSON }}" > credentials.json
-        # This command ensures the file is created in the root of the project directory.
-
-      - name: DEBUG - Check credentials file structure
+      # Step 4: Create credentials.json for debugging
+      # This step is a temporary measure to debug JSON parsing issues.
+      # The user will paste their credentials content directly here.
+      - name: DEBUG - Create credentials file directly
         run: |
-          echo "File content starts with: $(head -c 20 credentials.json)"
-          echo "File content ends with: $(tail -c 20 credentials.json)"
+          cat <<'EOF' > credentials.json
+          ここに、あなたのcredentials.jsonの中身を貼り付けてください
+          EOF
 
       # Step 5: Create the config.ini file from other GitHub Secrets
       # This builds the configuration file using the secure values you provide.
