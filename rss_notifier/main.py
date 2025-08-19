@@ -17,15 +17,15 @@ CONFIG_FILE = 'config.ini'
 config = configparser.ConfigParser()
 config.read(CONFIG_FILE)
 
-# Gspread settings
+# Gspread settings from config file
 SERVICE_ACCOUNT_FILE = config.get('GSPREAD', 'SERVICE_ACCOUNT_FILE', fallback='credentials.json')
 SHEET_NAME = config.get('GSPREAD', 'SHEET_NAME', fallback='RSS_Feed_History')
 
 # Ntfy settings
 NTFY_TOPIC = config.get('NTFY', 'TOPIC', fallback=None)
 
-# --- URL Loading Function ---
 
+# --- URL Loading Function ---
 def get_urls_from_file(filename="urls.txt"):
     """
     Reads a list of URLs from a text file, one URL per line.
@@ -42,7 +42,6 @@ def get_urls_from_file(filename="urls.txt"):
 
 
 # --- Google Sheets Functions ---
-
 def get_worksheet():
     """Authenticates and returns the target worksheet."""
     try:
@@ -96,8 +95,8 @@ def add_articles_to_sheet(worksheet, articles):
     except Exception as e:
         print(f"An error occurred while writing to the worksheet: {e}")
 
-# --- RSS & Notification Functions ---
 
+# --- RSS & Notification Functions ---
 def fetch_all_articles(urls):
     """Fetches all articles from a list of RSS feed URLs."""
     all_articles = []
@@ -126,23 +125,22 @@ def send_notification(article):
     link = getattr(article, 'link', 'No Link')
 
     try:
-        # Using .encode('utf-8') is important for handling special characters
         requests.post(
             f"https://ntfy.sh/{NTFY_TOPIC}",
             data=link.encode('utf-8'),
             headers={
                 "Title": title.encode('utf-8'),
                 "Click": link,
-                "Tags": "newspaper" # Use a newspaper icon for the notification
+                "Tags": "newspaper"
             },
-            timeout=10 # Add a timeout to prevent hanging
+            timeout=10
         )
         print(f"    - Notification sent for: {title}")
     except Exception as e:
         print(f"    - ERROR: Failed to send notification for '{title}'. Reason: {e}")
 
-# --- Main Execution ---
 
+# --- Main Execution ---
 def main():
     """Main function to run the RSS notifier."""
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] RSS Notifier script started.")
@@ -168,9 +166,9 @@ def main():
         print("No new articles found.")
     else:
         print(f"Found {len(new_articles)} new articles. Processing...")
-        for article in reversed(new_articles): # Reverse to send oldest first
+        for article in reversed(new_articles):
             send_notification(article)
-            time.sleep(1) # Wait 1 second between notifications to avoid rate-limiting
+            time.sleep(1)
 
         add_articles_to_sheet(worksheet, new_articles)
 
