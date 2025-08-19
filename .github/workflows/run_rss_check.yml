@@ -51,10 +51,12 @@ jobs:
           echo "" >> config.ini
           echo "[NTFY]" >> config.ini
           echo "TOPIC = ${{ secrets.NTFY_TOPIC }}" >> config.ini
-          echo "" >> config.ini
-          echo "[RSS_FEEDS]" >> config.ini
-          echo "URLS = ${{ secrets.RSS_URLS }}" >> config.ini
 
-      # Step 6: Run the main Python script
+      # Step 6: Create urls.txt file from secret
+      # This securely writes the list of RSS URLs into a text file.
+      - name: Create urls.txt file from secret
+        run: echo "${{ secrets.RSS_URLS }}" > urls.txt
+
+      # Step 7: Run the main Python script
       - name: Run the RSS notifier script
         run: python rss_notifier/main.py

@@ -24,9 +24,21 @@ SHEET_NAME = config.get('GSPREAD', 'SHEET_NAME', fallback='RSS_Feed_History')
 # Ntfy settings
 NTFY_TOPIC = config.get('NTFY', 'TOPIC', fallback=None)
 
-# RSS Feed URLs
-URLS_TO_CHECK = config.get('RSS_FEEDS', 'URLS', fallback='').strip().split('\n')
-URLS_TO_CHECK = [url.strip() for url in URLS_TO_CHECK if url.strip()]
+# --- URL Loading Function ---
+
+def get_urls_from_file(filename="urls.txt"):
+    """
+    Reads a list of URLs from a text file, one URL per line.
+    Ignores empty lines and lines starting with #.
+    """
+    urls = []
+    try:
+        with open(filename, 'r', encoding='utf-8') as f:
+            urls = [line.strip() for line in f if line.strip() and not line.strip().startswith('#')]
+        return urls
+    except FileNotFoundError:
+        print(f"Info: URL file '{filename}' not found. No feeds will be checked.")
+        return []
 
 
 # --- Google Sheets Functions ---
@@ -90,7 +102,7 @@ def fetch_all_articles(urls):
     """Fetches all articles from a list of RSS feed URLs."""
     all_articles = []
     if not urls:
-        print("No RSS feed URLs found in config.ini.")
+        print("No RSS feed URLs found in urls.txt.")
         return all_articles
     print(f"Fetching articles from {len(urls)} feed(s)...")
     for url in urls:
@@ -143,7 +155,8 @@ def main():
     seen_ids = get_seen_ids(worksheet)
     print(f"Found {len(seen_ids)} previously seen article IDs.")
 
-    fetched_articles = fetch_all_articles(URLS_TO_CHECK)
+    urls_to_check = get_urls_from_file()
+    fetched_articles = fetch_all_articles(urls_to_check)
 
     new_articles = []
     for article in fetched_articles:
