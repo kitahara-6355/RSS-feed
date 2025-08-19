@@ -41,6 +41,11 @@ jobs:
         run: echo "${{ secrets.GCP_CREDENTIALS_JSON }}" > credentials.json
         # This command ensures the file is created in the root of the project directory.
 
+      - name: DEBUG - Check credentials file structure
+        run: |
+          echo "File content starts with: $(head -c 20 credentials.json)"
+          echo "File content ends with: $(tail -c 20 credentials.json)"
+
       # Step 5: Create the config.ini file from other GitHub Secrets
       # This builds the configuration file using the secure values you provide.
       - name: Create config file from secrets
