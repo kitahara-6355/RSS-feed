@@ -40,7 +40,19 @@ jobs:
       - name: DEBUG - Create credentials file directly
         run: |
           cat <<'EOF' > credentials.json
-          ここに、あなたのcredentials.jsonの中身を貼り付けてください
+          {
+  "type": "service_account",
+  "project_id": "teak-passage-469204-f5",
+  "private_key_id": "58c2fcb5856cf19bc0dac893623c3af712fc9f5c",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDyoJQU1OQ/eZnw\nv8+rzr83lkShcOUcSJKn2ExC8mpyy1a4dyC1KaRO1G+81gMLVZpZQKMu3DEAkJow\ntURnaU3hV73/JFJYdF+qPr0/b5ZOilk936/J2ctUepTt8LD+gxEzU5ElQM4aWKPw\n4xm9LDznbysQL8DJ6ltjH2F97cvMxScedroAKPLMftBXC9Ged39Olfw6k8eoSYpp\n/pPNfhZNV/06YQ1JlNLsVEave2/z37Yscz3owvbLY+ZmhoGhcSsiQJMq8C/aLtzW\nRzLqe7tzWqDtHQj4UMoeQL7XbU5VE+djA/MoGLyp4DShHfq6ppJQa/Xn4n+0DMEg\n2wveTRbPAgMBAAECggEAW/2mJ3/QSoDAbRdMlcd9mIXQ36T+OQsLD7hisb9XvM57\nwtToAcgYFAtXkjFSVinOq6hmNo4lxiENVQplNRAoBxhNYT9UOVVmMBY5iqO0SXML\nAvqcm9uHzC/t54kqklT/YIZ+sbEwc6zH+70fNSpgrR7pJOn2HphMrfhn7mcKrkgU\n3f1zYb5i6c/fNbZuPOqYVigEcv4Exp6AeuUtIBLoYvPdQav9mGWwqTWm8tcPhFD+\nYH46d4ilPpfn/xKYczMDIshiGpUgo+7vPWrt4jR4LzP3zT0jcW3Puvrj0nOxw1XC\nJtLvAujT52KfWu9gZTZRa+/eCPt0eXMjzdnZbAwKgQKBgQD7rL7k92j8FdDHTg42\nXKfzoeAPiVIJP9uoICxsK6ZXKGuxjXeu5N9qvx9S43qMsUjgRSzRbhbZ+DpgmE3R\nk/ezTMzcVqLyi9dKKq1KE7AbCMiu5p4EFb3KTZse+l5o8sPOqajtDSpCZKrrrSUr\nlMinSchuKXVOCiaMl+HcchEr8wKBgQD2zAcbbhwQA8wbxQR9OKdFHUtTxS1jXgKp\n0MS4T0GnLoXC9tSbLMsSooJtMrh/adD/Q3T2ECb0CMPpdpTBy7/KXCyd6FaFFXnT\n0hHMWdIc/8q+atWN4jtKkBWQj4FAzI8CgWvxRl6ACaIC65P5TN2FIVR30+xQRhdb\nQ0TwEAfstQKBgQDchPB/D4od17+n4uzxFR7UivIYquoG0L1XA1npLhYCKJi0apCD\n3mck0XJQ3qFyxaRlXjd3Ck9bjfUYzlrhWBWiNZkLN55vh7iMc/iC/90+0uOE3O14\nBtTVfkp9SkOPEaggXOh3TSHKKwrYlk4LccKfUjccz5bJWnuMlUiCMDB7oQKBgGaG\n2CUDF1Fn4nFe5cCHuqWxx8tjTLnNIlodyruu4V1srFEUbbqRX0O8k2Z9/bug4BxL\nj9lxWF1lDs58Xswrst+Eb1yiWt8qztO6n34/ilRVx4pXo6Qv6eXN+cd2doHO+VJX\nJdq0Gyoh1lZUO8MDtbtK32ZweenXVHird4Yrgr9JAoGBANMyXL2Gh8Ej9rIhY2Kl\nkHOou+7zXy6sDCirFtu0PDpXHXdr10B6OVZpeDrEsU7x3SpXT9brymvrbRiTIkQ8\nHO/h+NOgSCUK4Hi5yBjbDuAJkafzAQAX4dtBgGfsu2lVN4eDPVSpr/eaTzkWJVyl\nrKdehq64bcfA/E5VTi2RQ7T2\n-----END PRIVATE KEY-----\n",
+  "client_email": "rss-notifier-bot@teak-passage-469204-f5.iam.gserviceaccount.com",
+  "client_id": "115033368037433400318",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/rss-notifier-bot%40teak-passage-469204-f5.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
           EOF
 
       # Step 5: Create the config.ini file from other GitHub Secrets
