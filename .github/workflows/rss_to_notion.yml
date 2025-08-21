@@ -1,0 +1,46 @@
+# Name of the workflow, as it will appear in the "Actions" tab of the GitHub repository.
+name: RSS to Notion Sync
+
+on:
+  # This section defines when the workflow will run automatically.
+  schedule:
+    # Runs every 6 hours. You can adjust this schedule.
+    # The format is based on cron syntax.
+    - cron: '0 */6 * * *'
+
+  # This allows you to run the workflow manually from the Actions tab, which is useful for testing.
+  workflow_dispatch:
+
+jobs:
+  # A workflow is made up of one or more jobs. We only need one here.
+  sync-to-notion:
+    # The type of virtual machine to run the job on. The standard Ubuntu is perfect.
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Check out the repository code
+      # This downloads your code (src/main.py, requirements.txt, etc.) into the runner environment.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 2: Set up the Python environment
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          # Specify the Python version to use.
+          python-version: '3.11'
+
+      # Step 3: Install the required Python libraries
+      # This reads the requirements.txt file and installs all necessary packages.
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Step 4: Run the Python script
+      # This executes your main script.
+      # It securely passes your Notion Token and Database ID from GitHub Secrets
+      # to the script as environment variables.
+      - name: Run RSS to Notion Sync script
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+        run: python src/main.py

@@ -1,9 +1,8 @@
-# For Google Sheets integration
-gspread
-google-auth-oauthlib
-
 # For parsing RSS feeds
 feedparser
 
-# For sending web requests (to ntfy.sh)
-requests
+# Official Notion SDK for Python
+notion-client
+
+# For reading environment variables from a .env file (for local development)
+python-dotenv
