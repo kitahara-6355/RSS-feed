@@ -3,7 +3,7 @@
 Module for interacting with a generative AI model to generate tags.
 """
 import google.generativeai as genai
-from typing import List
+from typing import List, Dict, Any
 import time
 
 class AITagger:
