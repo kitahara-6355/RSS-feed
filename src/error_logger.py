@@ -16,21 +16,23 @@ class ErrorLogger:
 
         # Define a log file for the current run
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.log_file = os.path.join(self.log_dir, f"ai_errors_{timestamp}.jsonl")
-        print(f"📝 Logging AI errors to: {self.log_file}")
+        self.log_file = os.path.join(self.log_dir, f"run_errors_{timestamp}.jsonl")
+        print(f"📝 Logging errors to: {self.log_file}")
 
-    def log_ai_failure(self, article: Dict[str, Any], error: str):
+    def log_failure(self, component: str, article_data: Dict[str, Any], error: Exception):
         """
-        Logs details of an AI processing failure to a JSONL file.
+        Logs details of a processing failure to a JSONL file.
 
         Args:
-            article: The article data that caused the failure.
-            error: The error message string.
+            component: The name of the component that failed (e.g., 'AI_Tagger', 'Notion_Client').
+            article_data: The article data that caused the failure.
+            error: The exception object.
         """
         log_entry = {
             "timestamp": datetime.now().isoformat(),
-            "article_title": article.get("title", "N/A"),
-            "article_url": article.get("link", "N/A"),
+            "component": component,
+            "article_title": article_data.get("title", "N/A"),
+            "article_url": article_data.get("link", "N/A"),
             "error_message": str(error)
         }
 

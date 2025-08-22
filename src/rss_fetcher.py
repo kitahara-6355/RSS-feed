@@ -14,12 +14,14 @@ def fetch_articles_from_feed(url: str) -> List[Dict[str, Any]]:
 
     Returns:
         A list of article entries, where each entry is a dictionary-like object
-        provided by feedparser.
+        provided by feedparser. Returns an empty list if fetching fails.
     """
     print(f"  - Fetching articles from {url}")
     try:
         feed = feedparser.parse(url)
         if feed.bozo:
+            # Bozo flag is set if the feed is not well-formed.
+            # We still try to process it but log a warning.
             print(f"    ⚠️ Warning: Feed at {url} may be malformed. Reason: {feed.bozo_exception}")
         return feed.entries
     except Exception as e:

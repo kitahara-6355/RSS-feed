@@ -1,46 +1,82 @@
 # RSS to Notion: AI-Powered Learning Log
 
-This system automatically fetches articles from RSS feeds, uses AI to generate relevant tags, and stores everything in a structured Notion database for learning and analysis. The entire process is automated with GitHub Actions.
+指定した複数のRSSフィードから新しい記事を自動で取得し、GoogleのGemini AIで内容を分析して関連タグを付与し、Notionデータベースに学習ログとして蓄積するシステムです。
 
-## Features
-- Fetches from multiple RSS feeds.
-- **Uses Google's Gemini AI to automatically generate tags** based on article content.
-- Stores articles in a Notion database.
-- Prevents duplicate entries.
-- Runs automatically on a schedule via GitHub Actions.
+このシステムはGitHub Actions上で定期的に（6時間ごとに）実行されるため、ご自身のPCの電源状態に関わらず、24時間365日、自動で情報収集と整理を続けてくれます。
+
+## 主な機能
+- **複数RSSフィードの監視**: `src/config.py`で定義されたURLリストに基づいて、複数のサイトを巡回します。
+- **AIによる自動タグ付け**: GoogleのGemini AIが記事のタイトルと概要を基に、最適なカテゴリタグを自動で生成します。
+- **Notionへの自動蓄積**: 新しい記事を、指定したNotionデータベースに自動で追加します。
+- **重複登録の防止**: Notionデータベース内に同じURLの記事がすでに存在する場合、重複して登録されるのを防ぎます。
+- **エラーロギング**: AIの処理などでエラーが発生した場合、`logs/`ディレクトリに詳細なログをJSON形式で保存します。
+- **完全自動実行**: GitHub Actionsにより、6時間ごとに自動で実行されます。手動での実行も可能です。
+
+## 必要なもの
+- GitHubアカウント
+- Notionアカウント
+- Googleアカウント
+
+---
+
+## セットアップ手順
+
+このシステムを動作させるには、NotionとGoogle AIのサービスを連携させるための初期設定が必要です。
+
+### ステップ1: Notionの準備
+
+1.  **Notionデータベースの作成**:
+    - Notionで「テーブル - フルページ」の新しいデータベースを作成します。
+    - 以下のプロパティ（列）を、**指定された名前と種類（タイプ）で正確に**作成してください。
+        | プロパティ名 | 種類 (Type)  |
+        | :--- | :--- |
+        | `Title` | `タイトル` |
+        | `URL` | `URL` |
+        | `Status` | `ステータス` |
+        | `Source` | `マルチセレクト` |
+        | `Author` | `リッチテキスト` |
+        | `Publication Date` | `日付` |
+        | `Tags` | `マルチセレクト` |
+    - `Status`プロパティには、**`未読`** という選択肢を必ず作成してください。
+
+2.  **Notionインテグレーションの作成**:
+    - [Notionのインテグレーション管理ページ](https://www.notion.so/my-integrations)で、「**+ 新しいインテグレーション**」を作成します。
+    - 作成後、`ntn_...`または`secret_...`で始まる**インテグレーション・トークン**をコピーします。
+
+3.  **データベースとの連携**:
+    - 作成したデータベースの右上の「・・・」メニューから「**+ コネクトの追加**」を選び、作成したインテグレーションを招待して連携させます。
+
+4.  **データベースIDの取得**:
+    - ブラウザのアドレスバーに表示されているURL `https://www.notion.so/DATABASE_ID?v=...` から、32文字の**データベースID**をコピーします。
+
+### ステップ2: Google AI (Gemini) APIキーの準備
+1.  [Google AI Studio](https://aistudio.google.com/) にアクセスします。
+2.  「**Get API key**」ボタンを押し、「**Create API key in new project**」を選択します。
+3.  表示された**APIキー**（長い文字列）をコピーします。
+
+### ステップ3: GitHub Secretsの設定
+
+このリポジトリに、取得した3つの情報を安全に設定します。
+
+1.  リポジトリの「**Settings**」タブ > 「**Secrets and variables**」 > 「**Actions**」に移動します。
+2.  「**New repository secret**」ボタンを押し、以下の**3つ**のSecretを一つずつ作成します。
+
+    - **`NOTION_TOKEN`**: ステップ1-2で取得したNotionのAPIキー。
+    - **`NOTION_DATABASE_ID`**: ステップ1-4で取得したNotionのデータベースID。
+    - **`GOOGLE_API_KEY`**: ステップ2で取得したGoogle AIのAPIキー。
 
 ---
 
-## Setup Instructions
+## 使い方とカスタマイズ
 
-To get this system running, you need to configure three services: **Notion**, **Google AI**, and **GitHub**.
+### 実行
+上記の設定が完了すれば、**自動的に6時間ごとにスクリプトが実行されます。**
 
-### Step 1: Notion Setup
-*(Instructions for setting up the Notion database and getting the Notion token/DB ID will be fully detailed here later.)*
+すぐに動作を確認したい場合は、手動で実行することも可能です。
+1.  リポジトリの「**Actions**」タブを開きます。
+2.  左側の「**RSS to Notion AI Sync**」ワークフローを選択します。
+3.  「**Run workflow**」ボタンを押します。
 
-1.  Create a Notion Database with the required properties.
-2.  Create a Notion Integration to get your `NOTION_TOKEN`.
-3.  Share the database with the integration.
-4.  Get the `NOTION_DATABASE_ID` from the database URL.
-
-### Step 2: Google AI (Gemini) API Key Setup
-The system uses Google's Gemini model for AI features. You need to get a free API key to enable this.
-
-1.  Go to the [Google AI Studio](https://aistudio.google.com/).
-2.  Sign in with your Google account.
-3.  Click the "**Get API key**" button.
-4.  In the dialog that appears, click "**Create API key in new project**".
-5.  Your new API key will be generated. **Copy this key** and save it somewhere safe. This is a secret password.
-
-### Step 3: GitHub Secrets Setup
-You need to add three secrets to this GitHub repository for the system to work.
-
-1.  Go to your repository's **Settings** > **Secrets and variables** > **Actions**.
-2.  Click **New repository secret** for each of the following:
-
-    - **`NOTION_TOKEN`**: The Notion integration token you created (`secret_...` or `ntn_...`).
-    - **`NOTION_DATABASE_ID`**: The ID of your Notion database.
-    - **`GOOGLE_API_KEY`**: The API key you just generated from Google AI Studio.
-
----
-*(Full usage and customization instructions will be added later.)*
+### カスタマイズ
+- **監視するRSSフィードの変更**: `src/config.py`ファイル内の`RSS_FEEDS`辞書を編集します。
+- **自動タグ付けルールの変更**: `src/ai_tagger.py`ファイル内の`TAG_RULES`辞書を編集します。

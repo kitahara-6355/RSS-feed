@@ -23,7 +23,6 @@ class AITagger:
         summary = article_data.get("summary", "")
         print(f"    - Generating AI tags for: {title}")
 
-        # Construct a clear prompt for the AI
         prompt = f"""
         以下の記事のタイトルと要約から、内容を的確に表すカテゴリタグを5つ以内で生成してください。
         タグは、日本語の簡潔なキーワード（例: AI, 経営, Python, セキュリティ, 書評）にしてください。
@@ -39,11 +38,10 @@ class AITagger:
         """
 
         try:
-            # Add retry logic for potential API flakiness
-            for attempt in range(3):
+            # Using a simple retry mechanism for transient API errors.
+            for attempt in range(2): # Try a total of 2 times
                 try:
                     response = self.model.generate_content(prompt)
-                    # Clean up the response and split into a list
                     tags_text = response.text.strip()
                     if not tags_text:
                         return ["その他"]
@@ -53,15 +51,12 @@ class AITagger:
                     return tags
                 except Exception as e:
                     print(f"    - ⚠️ AI generation attempt {attempt + 1} failed: {e}")
-                    if attempt < 2:
-                        time.sleep(2) # Wait before retrying
+                    if attempt < 1:
+                        time.sleep(5) # Wait longer before the final retry
                     else:
-                        raise e # Re-raise after final attempt fails
+                        raise e
         except Exception as e:
-            print(f"    - ❌ ERROR: Failed to generate AI tags for '{title}'. Reason: {e}")
+            print(f"    - ❌ ERROR: Failed to generate AI tags for '{title}'.")
             if self.logger:
-                # We need to pass the original article data to the logger
-                log_data = {"title": title, "link": article_data.get("link", "N/A")}
-                self.logger.log_ai_failure(log_data, e)
-            # Fail-safe as requested
+                self.logger.log_failure(component="AI_Tagger", article_data=article_data, error=e)
             return ["その他"]

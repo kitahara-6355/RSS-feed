@@ -1,15 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-Main entry point for the RSS to Notion automation system.
-
-This script orchestrates the fetching of RSS feeds, generation of AI tags,
-and creation of new pages in a Notion database.
+Main entry point for the RSS to Notion AI Tagger system.
+Orchestrates the fetching, tagging, and saving of RSS articles.
 """
 import time
 from datetime import datetime, timezone
 
 # Import our custom modules
-from config import NOTION_TOKEN, NOTION_DATABASE_ID, GOOGLE_API_KEY, RSS_FEEDS
+from config import NOTION_TOKEN, NOTION_DATABASE_ID, GOOGLE_API_KEY, RSS_FEEDS, API_DELAY_SECONDS
 from rss_fetcher import fetch_articles_from_feed
 from notion_handler import NotionClient
 from ai_tagger import AITagger
@@ -29,7 +27,7 @@ def run():
     logger = ErrorLogger()
 
     try:
-        notion = NotionClient(token=NOTION_TOKEN, database_id=NOTION_DATABASE_ID)
+        notion = NotionClient(token=NOTION_TOKEN, database_id=NOTION_DATABASE_ID, logger=logger)
         tagger = AITagger(api_key=GOOGLE_API_KEY, logger=logger)
     except ValueError as e:
         print(f"❌ ERROR: Failed to initialize clients. Reason: {e}")
@@ -54,25 +52,29 @@ def run():
                 print(f"    - ⏭️  Skip (already exists): {title}")
                 continue
 
-            # 2. Generate AI tags
-            # Prepare a dictionary with all relevant article data for the tagger
-            article_data_for_ai = {
+            # Prepare data dictionary to pass around
+            article_data = {
                 "title": title,
+                "link": link,
                 "summary": entry.get("summary", ""),
-                "link": link # Pass link for context and logging
+                "author": entry.get("author", "Unknown"),
+                "source": source_name,
+                "published_parsed": entry.get("published_parsed")
             }
-            tags = tagger.generate_tags(article_data_for_ai)
+
+            # 2. Generate AI tags
+            tags = tagger.generate_tags(article_data)
 
             # 3. Prepare data for Notion page
             published_time = datetime.now(timezone.utc)
-            if hasattr(entry, "published_parsed") and entry.published_parsed is not None:
-                published_time = datetime.fromtimestamp(time.mktime(entry.published_parsed), tz=timezone.utc)
+            if article_data.get("published_parsed") is not None:
+                published_time = datetime.fromtimestamp(time.mktime(article_data["published_parsed"]), tz=timezone.utc)
 
             page_data_for_notion = {
                 "title": title,
                 "url": link,
                 "source": source_name,
-                "author": entry.get("author", "Unknown"),
+                "author": article_data.get("author"),
                 "published_time": published_time,
                 "tags": tags
             }
@@ -81,7 +83,8 @@ def run():
             notion.create_page(page_data_for_notion)
 
             # Respect API rate limits
-            time.sleep(1) # Pause between each article processed
+            print(f"    - ⏱️ Waiting for {API_DELAY_SECONDS} seconds to respect API rate limits...")
+            time.sleep(API_DELAY_SECONDS)
 
     print("\n✅ System finished successfully.")
 
