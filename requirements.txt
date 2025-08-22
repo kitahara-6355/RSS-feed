@@ -6,3 +6,6 @@ notion-client
 
 # For reading environment variables from a .env file (for local development)
 python-dotenv
+
+# For using Google's Generative AI (Gemini)
+google-generativeai
