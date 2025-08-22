@@ -7,7 +7,6 @@ import time
 from dotenv import load_dotenv
 
 # --- Configuration ---
-# Load environment variables from .env file for local development
 load_dotenv()
 
 # Notion API secrets
@@ -15,8 +14,6 @@ NOTION_TOKEN = os.getenv("NOTION_TOKEN")
 NOTION_DATABASE_ID = os.getenv("NOTION_DATABASE_ID")
 
 # List of RSS Feeds to process
-# In production, this will be read from a file or another source.
-# For now, it's defined here. We'll move this to a separate file later.
 RSS_FEEDS = {
     "Stratechery": "https://stratechery.passport.online/feed/rss/CSK33gZ915wtJAdPakp4b",
     "note/takahiroanno": "https://note.com/takahiroanno/rss",
@@ -49,7 +46,6 @@ def check_if_url_exists(url_to_check: str) -> bool:
         return len(results) > 0
     except Exception as e:
         print(f"Error checking for existing URL: {e}")
-        # In case of error, assume page exists to avoid duplicates
         return True
 
 def assign_tags(title: str, summary: str) -> list:
@@ -66,31 +62,28 @@ def add_article_to_notion(entry, source_name: str):
     title = entry.get("title", "No Title")
     link = entry.get("link", "")
 
-    # Skip if link is missing
     if not link:
         return
 
-    # Check for duplicates first
     if check_if_url_exists(link):
         print(f"⏭️  Skip (already exists): {title}")
         return
 
-    # Prepare properties for Notion API
     author = entry.get("author", "Unknown")
-    summary = entry.get("summary", "")
-    tags = assign_tags(title, summary)
+    tags = assign_tags(title, "") # Summary is often too noisy, just use title for now.
 
     published_time = datetime.now(timezone.utc)
     if hasattr(entry, "published_parsed") and entry.published_parsed is not None:
         published_time = datetime.fromtimestamp(time.mktime(entry.published_parsed), tz=timezone.utc)
 
+    # Corrected properties based on user feedback
     properties = {
         "Title": {"title": [{"text": {"content": title}}]},
         "URL": {"url": link},
-        "Status": {"select": {"name": "未読"}},
-        "Source": {"select": {"name": source_name}},
+        "Status": {"multi_select": [{"name": "未読"}]},
+        "Source": {"multi_select": [{"name": source_name}]},
         "Author": {"rich_text": [{"text": {"content": author}}]},
-        "Published": {"date": {"start": published_time.isoformat()}},
+        "Publication Date": {"date": {"start": published_time.isoformat()}},
     }
     if tags:
         properties["Tags"] = {"multi_select": tags}
@@ -117,10 +110,9 @@ def main():
         print(f"\n📡 Processing feed: {source_name} ({url})")
         try:
             feed = feedparser.parse(url)
-            # Process entries in reverse for chronological order in Notion
             for entry in reversed(feed.entries):
                 add_article_to_notion(entry, source_name)
-                time.sleep(0.5) # Respect Notion API rate limits (3 requests/sec)
+                time.sleep(0.5)
         except Exception as e:
             print(f"  - Failed to process feed {url}. Reason: {e}")
 
