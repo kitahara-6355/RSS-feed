@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 # Import our custom modules
 from config import NOTION_TOKEN, NOTION_DATABASE_ID, GOOGLE_API_KEY, RSS_FEEDS
 from rss_fetcher import fetch_articles_from_feed
-from notion_client import NotionClient
+from notion_handler import NotionClient
 from ai_tagger import AITagger
 from error_logger import ErrorLogger
 
