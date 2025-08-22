@@ -80,7 +80,7 @@ def add_article_to_notion(entry, source_name: str):
     properties = {
         "Title": {"title": [{"text": {"content": title}}]},
         "URL": {"url": link},
-        "Status": {"multi_select": [{"name": "未読"}]},
+        "Status": {"status": {"name": "未読"}},
         "Source": {"multi_select": [{"name": source_name}]},
         "Author": {"rich_text": [{"text": {"content": author}}]},
         "Publication Date": {"date": {"start": published_time.isoformat()}},
