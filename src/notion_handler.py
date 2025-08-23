@@ -138,6 +138,34 @@ class NotionClient:
                 log_data = {"page_id": page_id, "score": score}
                 self.logger.log_failure(component="Notion_Client_Update_Score", article_data=log_data, error=e)
 
+    def append_text_to_page(self, page_id: str, text_content: str):
+        """Appends a new paragraph block to the specified page."""
+        print(f"    - Appending suggestions to page {page_id}...")
+        try:
+            self.notion.blocks.children.append(
+                block_id=page_id,
+                children=[
+                    {
+                        "object": "block",
+                        "type": "paragraph",
+                        "paragraph": {
+                            "rich_text": [
+                                {
+                                    "type": "text",
+                                    "text": { "content": text_content }
+                                }
+                            ]
+                        }
+                    }
+                ]
+            )
+            print(f"    - ✅ Successfully appended suggestions.")
+        except Exception as e:
+            print(f"    - ❌ Failed to append text to page {page_id}: {e}")
+            if self.logger:
+                log_data = {"page_id": page_id}
+                self.logger.log_failure(component="Notion_Client_Append", article_data=log_data, error=e)
+
     def get_all_rated_pages(self) -> List[Dict[str, Any]]:
         """
         Retrieves all pages from the database that have a rating, handling pagination.

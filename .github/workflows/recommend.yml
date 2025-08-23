@@ -1,0 +1,44 @@
+# Name of the workflow for recommending new RSS feeds.
+name: Recommend New Feeds
+
+on:
+  # Schedule to run on the 1st of every month at 1 AM.
+  schedule:
+    - cron: '0 1 1 * *'
+
+  # Allow manual runs from the Actions tab.
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for running the workflow'
+        required: false
+        default: 'Manual search for new feed recommendations'
+
+jobs:
+  recommend-feeds:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Check out the repository code
+      # This is important to get the latest user_profile.json
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 2: Set up Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Step 3: Install dependencies
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Step 4: Run the recommendation script
+      - name: Run Feed Recommendation script
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_SUGGESTIONS_PAGE_ID: ${{ secrets.NOTION_SUGGESTIONS_PAGE_ID }}
+          # This script doesn't need the GOOGLE_API_KEY for Gemini,
+          # but it does use the google_search tool which is authenticated differently.
+        run: python src/recommend_feeds.py
