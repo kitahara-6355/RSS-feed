@@ -41,15 +41,10 @@ class AISummarizer:
                 self.logger.log_failure("Summarizer_Scrape", {"link": url}, e)
             return None
 
-    def summarize(self, url: str, lang: str) -> Optional[str]:
+    def summarize(self, url: str) -> Optional[str]:
         """
-        Generates a summary for a given article URL.
-        Only attempts to summarize if the language is not Japanese.
+        Generates a Japanese summary for a given article URL, regardless of source language.
         """
-        if lang == 'ja':
-            print("    - ⏭️  Skipping summary for Japanese article.")
-            return None
-
         content = self._scrape_article_text(url)
         if not content:
             return None

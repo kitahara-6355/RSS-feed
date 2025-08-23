@@ -5,7 +5,6 @@ Orchestrates the fetching, tagging, summarization, and saving of RSS articles.
 """
 import time
 from datetime import datetime, timezone
-from langdetect import detect, LangDetectException
 
 # Import our custom modules
 from config import NOTION_TOKEN, NOTION_DATABASE_ID, GOOGLE_API_KEY, RSS_FEEDS, API_DELAY_SECONDS
@@ -55,23 +54,14 @@ def run():
 
             summary_text = entry.get("summary", "")
 
-            # Detect language for summarization logic
-            try:
-                lang = detect(title + " " + summary_text)
-            except LangDetectException:
-                lang = "unknown"
-                print(f"    - ⚠️ Could not detect language for: {title}")
-
             # Prepare data for AI processing
             article_data_for_ai = {"title": title, "summary": summary_text, "link": link}
 
             # Generate tags
             tags = tagger.generate_tags(article_data_for_ai)
 
-            # Generate Japanese summary for non-Japanese articles
-            jp_summary = None
-            if lang != 'ja':
-                jp_summary = summarizer.summarize(link, lang)
+            # Generate Japanese summary for all articles
+            jp_summary = summarizer.summarize(link)
 
             # Prepare data for Notion
             published_time = datetime.now(timezone.utc)
