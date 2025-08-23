@@ -137,3 +137,39 @@ class NotionClient:
             if self.logger:
                 log_data = {"page_id": page_id, "score": score}
                 self.logger.log_failure(component="Notion_Client_Update_Score", article_data=log_data, error=e)
+
+    def get_all_rated_pages(self) -> List[Dict[str, Any]]:
+        """
+        Retrieves all pages from the database that have a rating, handling pagination.
+        """
+        all_pages = []
+        has_more = True
+        start_cursor = None
+        print("🔎 Querying for all rated pages in Notion...")
+
+        while has_more:
+            try:
+                response = self.notion.databases.query(
+                    database_id=self.database_id,
+                    filter={
+                        "or": [
+                            {"property": "興味度", "number": {"is_not_empty": True}},
+                            {"property": "重要度", "number": {"is_not_empty": True}}
+                        ]
+                    },
+                    start_cursor=start_cursor,
+                    page_size=100 # Max page size
+                )
+                all_pages.extend(response.get("results", []))
+                has_more = response.get("has_more", False)
+                start_cursor = response.get("next_cursor")
+                if start_cursor:
+                    print(f"  - Fetched {len(all_pages)} pages, more available...")
+            except Exception as e:
+                print(f"    - ❌ ERROR querying for all rated pages: {e}")
+                if self.logger:
+                    self.logger.log_failure(component="Notion_Client_Query_All_Rated", article_data={}, error=e)
+                break # Exit loop on error
+
+        print(f"  - ✅ Total rated pages found: {len(all_pages)}")
+        return all_pages

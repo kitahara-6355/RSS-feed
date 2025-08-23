@@ -1,0 +1,54 @@
+# Name of the workflow for learning from user feedback.
+name: Learn from User Feedback
+
+on:
+  # Schedule to run once a week at midnight on Sunday.
+  schedule:
+    - cron: '0 0 * * 0'
+
+  # Allow manual runs from the Actions tab.
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for running the workflow'
+        required: false
+        default: 'Manual update of user interest profile'
+
+jobs:
+  learn-from-feedback:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Check out the repository code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 2: Set up Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Step 3: Install dependencies
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Step 4: Run the learning script
+      # This generates the user_profile.json file.
+      - name: Run Learning script
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+        run: python src/learn_from_feedback.py
+
+      # Step 5: Commit the updated user profile back to the repository
+      # This action checks if user_profile.json has changed and, if so,
+      # creates a new commit with the update.
+      - name: Commit updated user profile
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: Update user interest profile"
+          file_pattern: "user_profile.json"
+          commit_user_name: "GitHub Actions Bot"
+          commit_user_email: "actions@github.com"
+          commit_author: "GitHub Actions Bot <actions@github.com>"
