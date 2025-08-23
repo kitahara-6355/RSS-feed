@@ -43,10 +43,12 @@ class AITagger:
                 try:
                     response = self.model.generate_content(prompt)
                     tags_text = response.text.strip()
-                    if not tags_text:
-                        return ["その他"]
-
                     tags = [tag.strip() for tag in tags_text.split(',') if tag.strip()]
+
+                    # If the AI returns an empty string or only whitespace, default to "その他"
+                    if not tags:
+                        tags = ["その他"]
+
                     print(f"    - ✨ AI tags generated: {', '.join(tags)}")
                     return tags
                 except Exception as e:
