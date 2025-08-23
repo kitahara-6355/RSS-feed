@@ -25,7 +25,7 @@ def run_enrichment():
         print("❌ ERROR: Required environment variables are not set.")
         return
 
-    logger = ErrorLogger()
+    logger = ErrorLogger(log_dir="logs/enrichment")
 
     try:
         notion = NotionClient(token=NOTION_TOKEN, database_id=NOTION_DATABASE_ID, logger=logger)
@@ -46,15 +46,17 @@ def run_enrichment():
         page_id = page.get("id")
         properties = page.get("properties", {})
 
-        # Extract title and any other text for context
-        title_property = properties.get("Title", {}).get("title", [{}])
+        # Extract title and handle cases where it might be empty
+        title_property = properties.get("Title", {}).get("title", [])
+        if not title_property:
+            print(f"    - ⏭️  Skipping page {page_id} because it has no title.")
+            continue
         title = title_property[0].get("text", {}).get("content", "No Title")
 
         # In a future version, we could fetch content from the URL for better context
-        # For now, we rely on the title.
         article_data = {
             "title": title,
-            "summary": "", # Summary is not stored in Notion, so it's blank
+            "summary": "", # Summary is not stored in Notion for manual entries
             "link": properties.get("URL", {}).get("url")
         }
 
