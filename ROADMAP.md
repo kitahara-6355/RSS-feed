@@ -2,28 +2,27 @@
 
 This document outlines the development roadmap for the RSS to Notion AI Tagger system. It tracks current features, planned improvements, and future ideas.
 
-## v1.2: Learning & Prioritization Engine (Current Version)
+## v1.3: Intelligent Filtering Engine (Current Version)
 
-The current version of the system includes all features from v1.1, plus:
-- **User Feedback Analysis**: A new, scheduled workflow (`Learn from User Feedback`) runs periodically to analyze user ratings in Notion.
-- **Interest Profile Generation**: The learning script calculates weighted scores for tags and sources based on user ratings (`興味度`, `重要度`) and status (`あとで読む`, `完了`), creating a `user_profile.json` file.
-- **Automated Profile Commits**: The learning workflow automatically commits the updated `user_profile.json` back to the repository, allowing the system to evolve.
+The current version of the system includes all features from v1.2, plus:
+- **[x] Intelligent Feed Filtering**: The main sync script now loads the `user_profile.json`. It calculates a "relevance score" for each new article based on the learned preferences for tags and sources. Articles that fall below a configurable `FILTERING_THRESHOLD` are automatically skipped, reducing noise and ensuring only relevant content is added to Notion.
 
 ---
 
 ## v2.0: Proactive AI Assistant (Next Steps)
 
-The next major version will focus on using the learned `user_profile.json` to make the system a proactive assistant.
+The next major version will focus on making the system a proactive assistant that learns from user feedback.
 
-- **[ ] Intelligent Feed Filtering**:
-    - **Action**: Modify the main `RSS to Notion AI Sync` script.
-    - **Logic**: The script will load `user_profile.json` and use the tag/source scores to calculate a "relevance score" for each new article *before* adding it to Notion. Articles below a certain threshold will be discarded, reducing noise.
 - **[ ] AI-Powered Feed Recommendation**:
     - **Action**: Create a new `recommend_feeds.py` script and workflow.
     - **Logic**: The script will use the top-scoring tags from `user_profile.json` to search for new, relevant RSS feeds online (e.g., via a search API or custom search).
     - **Output**: Suggestions will be added to a dedicated page in Notion for user approval.
 - **[ ] Enhanced Notifications (Slack/Discord)**:
-    - Send a daily or weekly digest of high-priority articles (based on the user's own ratings) to a specified Slack or Discord channel.
+    - Add a new notification module for Slack or Discord.
+    - Instead of notifying on every new article, send a daily or weekly digest of high-priority articles (based on the user's own ratings) to a specified channel.
+- **[ ] Article Screenshotting**:
+    - Integrate a headless browser tool like Playwright.
+    - Add a feature to navigate to the article URL, take a full-page screenshot, and attach it to the Notion page for archival and quick-glance purposes.
 
 ---
 
