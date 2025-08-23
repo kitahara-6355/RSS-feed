@@ -62,3 +62,35 @@ class NotionClient:
             print(f"    - ❌ Failed to add to Notion: {title}")
             if self.logger:
                 self.logger.log_failure(component="Notion_Client_Create", article_data=article_data, error=e)
+
+    def query_pages_to_enrich(self) -> List[Dict[str, Any]]:
+        """Queries for pages that need enrichment (e.g., Tags property is empty)."""
+        print("🔎 Querying for Notion pages with empty tags...")
+        try:
+            response = self.notion.databases.query(
+                database_id=self.database_id,
+                filter={"property": "Tags", "multi_select": {"is_empty": True}},
+            )
+            results = response.get("results", [])
+            print(f"  - Found {len(results)} pages to enrich.")
+            return results
+        except Exception as e:
+            print(f"    - ❌ ERROR querying for pages to enrich: {e}")
+            if self.logger:
+                self.logger.log_failure(component="Notion_Client_Query", article_data={}, error=e)
+            return []
+
+    def update_page_tags(self, page_id: str, tags: List[str]):
+        """Updates the 'Tags' property of a specific page."""
+        print(f"    - Updating page {page_id} with tags: {tags}")
+        try:
+            properties_to_update = {
+                "Tags": {"multi_select": [{"name": tag} for tag in tags]}
+            }
+            self.notion.pages.update(page_id=page_id, properties=properties_to_update)
+            print(f"    - ✅ Successfully updated page: {page_id}")
+        except Exception as e:
+            print(f"    - ❌ Failed to update page {page_id}: {e}")
+            if self.logger:
+                log_data = {"page_id": page_id, "tags": tags}
+                self.logger.log_failure(component="Notion_Client_Update", article_data=log_data, error=e)
