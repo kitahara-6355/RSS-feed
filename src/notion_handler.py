@@ -52,6 +52,10 @@ class NotionClient:
             "Tags": {"multi_select": [{"name": tag} for tag in article_data.get("tags", [])]}
         }
 
+        summary = article_data.get("summary")
+        if summary:
+            properties["日本語要約"] = {"rich_text": [{"text": {"content": summary}}]}
+
         try:
             self.notion.pages.create(
                 parent={"database_id": self.database_id},
@@ -94,3 +98,42 @@ class NotionClient:
             if self.logger:
                 log_data = {"page_id": page_id, "tags": tags}
                 self.logger.log_failure(component="Notion_Client_Update", article_data=log_data, error=e)
+
+    def query_pages_for_scoring(self) -> List[Dict[str, Any]]:
+        """Queries for pages that have ratings set."""
+        print("🔎 Querying for Notion pages with ratings...")
+        try:
+            response = self.notion.databases.query(
+                database_id=self.database_id,
+                filter={
+                    "or": [
+                        {"property": "興味度", "number": {"is_not_empty": True}},
+                        {"property": "重要度", "number": {"is_not_empty": True}}
+                    ]
+                }
+            )
+            results = response.get("results", [])
+            print(f"  - Found {len(results)} pages with ratings.")
+            return results
+        except Exception as e:
+            print(f"    - ❌ ERROR querying for pages to score: {e}")
+            if self.logger:
+                self.logger.log_failure(component="Notion_Client_Query_Score", article_data={}, error=e)
+            return []
+
+    def update_page_score(self, page_id: str, score: float):
+        """Updates the '優先度スコア' (Number property) of a specific page."""
+        print(f"    - Updating page {page_id} with score: {score:.2f}")
+        try:
+            # Note: This assumes '優先度スコア' is a NUMBER property, not a Formula property,
+            # as formula properties cannot be updated via the API.
+            properties_to_update = {
+                "優先度スコア": {"number": score}
+            }
+            self.notion.pages.update(page_id=page_id, properties=properties_to_update)
+            print(f"    - ✅ Successfully updated score for page: {page_id}")
+        except Exception as e:
+            print(f"    - ❌ Failed to update score for page {page_id}: {e}")
+            if self.logger:
+                log_data = {"page_id": page_id, "score": score}
+                self.logger.log_failure(component="Notion_Client_Update_Score", article_data=log_data, error=e)

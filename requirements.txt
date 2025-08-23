@@ -9,3 +9,9 @@ python-dotenv
 
 # For using Google's Generative AI (Gemini)
 google-generativeai
+
+# For parsing HTML content (web scraping)
+beautifulsoup4
+
+# For language detection
+langdetect

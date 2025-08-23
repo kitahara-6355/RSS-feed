@@ -2,55 +2,35 @@
 
 This document outlines the development roadmap for the RSS to Notion AI Tagger system. It tracks current features, planned improvements, and future ideas.
 
-## v1.0: AI-Powered Tagger (Current Version)
+## v1.1: AI-Powered Analysis & Prioritization (Current Version)
 
 The current version of the system includes the following core features:
-- **Modular Architecture**: The code is split into logical modules for fetching RSS (`rss_fetcher`), interacting with Notion (`notion_handler`), generating tags (`ai_tagger`), configuration (`config`), and error logging (`error_logger`).
-- **RSS Feed Processing**: Fetches articles from a predefined list of RSS URLs.
-- **Notion Integration**:
-    - Checks for duplicate articles in a Notion database by URL to prevent re-adding.
-    - Creates new pages in Notion for new articles, populating properties like Title, URL, Author, Source, Status, Publication Date, and Tags.
-- **AI-Powered Tagging**:
-    - Uses Google's Gemini AI to generate relevant tags based on an article's title.
-    - Includes a fail-safe to assign a default "その他" tag if the AI fails.
-- **Advanced Error Logging**:
-    - Creates a `logs/` directory.
-    - Logs any errors from the AI or Notion processes to a timestamped JSONL file for easy debugging.
-- **Automated Execution**:
-    - A GitHub Actions workflow runs the entire pipeline on a schedule (every 6 hours) and can be triggered manually.
-    - All secrets (Notion Token, Database ID, Google API Key) are handled securely via GitHub Secrets.
-- **Rate Limiting**: Includes a delay between processing articles to respect the free-tier limits of the Google AI API.
+- **Modular Architecture**: The code is split into logical modules for fetching RSS, interacting with Notion, generating tags, summarizing content, and logging errors.
+- **AI-Powered Tagging**: Uses Google's Gemini AI to generate relevant tags based on an article's title.
+- **AI-Powered Summarization**: A dedicated module scrapes non-Japanese articles and uses Gemini AI to generate a Japanese summary, which is saved to Notion.
+- **Manual Enrichment Workflow**: A separate, manually triggered workflow (`Enrich Notion Entries`) allows users to process articles they've added to Notion by hand, applying AI tags.
+- **User-Driven Priority Scoring**:
+    - The system supports user-provided "Interest" and "Importance" ratings in Notion.
+    - A separate script (`calculate_priority.py`) can be run to automatically calculate a weighted "Priority Score" based on these ratings.
+- **Robust Automation**: All features are integrated into GitHub Actions workflows for scheduled and manual execution, with secure handling of secrets.
+- **Advanced Error Logging**: Logs failures from AI or Notion processes to a `logs/` directory for monitoring.
 
 ---
 
-## v1.1: Near-Term Improvements (Next Steps)
+## v2.0: Proactive AI Assistant (Next Steps)
 
-The following are planned enhancements to improve usability and robustness.
+The next major version will focus on making the system a proactive assistant that learns from user feedback.
 
-- **[ ] External Feed Configuration**: Move the hardcoded `RSS_FEEDS` dictionary from `src/config.py` to a separate `urls.json` or `urls.txt` file that can be managed without changing the code.
-- **[ ] Enhanced Error Notifications**: In addition to logging errors, implement a system to send a notification (e.g., via ntfy or email) if the workflow run fails completely.
-- **[ ] More Sophisticated AI Prompting**:
-    - Refine the prompt sent to the Gemini AI to generate more structured output, potentially including a primary category in addition to tags.
-    - Use the article summary (in addition to the title) for more accurate tagging, while being mindful of token limits.
-- **[ ] Batch Processing for Notion**: Update the Notion client to add multiple new pages in a single batch request to improve efficiency and reduce API calls, where the Notion API supports it.
-
----
-
-## v2.0: Major Feature Upgrades
-
-These are larger features that would significantly expand the system's capabilities.
-
-- **[ ] Slack/Discord Notification Integration**:
-    - Add a new notification module.
-    - Implement functionality to send summaries of newly added articles to a specified Slack or Discord channel via webhooks, perhaps only for articles with a certain tag.
+- **[ ] AI-Powered Recommendation Engine**:
+    - **Learning from Scores**: Implement a recurring job that analyzes the user's "Interest" and "Importance" scores in Notion.
+    - **Fine-tuning**: Use this data to learn which tags, sources, or keywords the user prefers.
+    - **Content Recommendation**: Proactively suggest new RSS feeds to add or remove based on this learned profile. The suggestions could be added to a new page in the Notion workspace.
+- **[ ] Enhanced Notifications (Slack/Discord)**:
+    - Add a new notification module for Slack or Discord.
+    - Instead of notifying on every new article, send a daily or weekly digest of high-priority articles (based on the priority score) to a specified channel.
 - **[ ] Article Screenshotting**:
     - Integrate a headless browser tool like Playwright.
-    - Add a feature to navigate to the article URL and take a full-page screenshot.
-    - Upload the screenshot to Notion's own file storage and embed it in the page.
-- **[ ] AI-Powered Summarization**:
-    - Enhance the `ai_tagger.py` module (or create a new `ai_summarizer.py`).
-    - Implement a feature to generate a concise summary of the article.
-    - Add the summary to a dedicated "Summary" property in the Notion database.
+    - Add a feature to navigate to the article URL, take a full-page screenshot, and attach it to the Notion page for archival and quick-glance purposes.
 
 ---
 
@@ -58,7 +38,6 @@ These are larger features that would significantly expand the system's capabilit
 
 Long-term ideas for the evolution of the project.
 
-- **[ ] Web UI / Dashboard**: A simple web interface (e.g., using Flask or Streamlit) to manage RSS feeds, view logs, and see statistics.
-- **[ ] Interactive AI Feedback Loop**: Allow the user to correct or add tags in Notion. A separate script could periodically read these manual changes to fine-tune the AI's tagging rules or prompt, creating a self-improving system.
-- **[ ] Vector Embeddings and Semantic Search**: Store vector embeddings of articles to enable powerful semantic search within the Notion database (e.g., "find articles similar to this one").
-- **[ ] Priority Scoring**: Develop a system to score articles based on source, keywords, and other metrics to automatically assign a "Priority" level in Notion.
+- **[ ] Web UI / Dashboard**: A simple web interface to manage RSS feeds, view logs, and trigger workflows without interacting with GitHub's UI.
+- **[ ] Vector Embeddings and Semantic Search**: Store vector embeddings of articles to enable powerful semantic search (e.g., "find articles similar to this one").
+- **[ ] Full-Text Ingestion and Analysis**: For high-priority sources, ingest the full text of articles into Notion (or a separate vector database) to enable deeper analysis and summarization.
