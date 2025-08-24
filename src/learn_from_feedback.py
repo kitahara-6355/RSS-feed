@@ -8,6 +8,7 @@ user profile to a JSON file.
 """
 import json
 from collections import defaultdict
+from datetime import datetime
 
 # Import our custom modules
 from config import NOTION_TOKEN, NOTION_DATABASE_ID

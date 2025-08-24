@@ -1,0 +1,914 @@
+{
+  "headlines.yahoo.co.jp": [
+    {
+      "url": "https://headlines.yahoo.co.jp/feed",
+      "status": "error",
+      "error": "HTTPSConnectionPool(host='headlines.yahoo.co.jp', port=443): Max retries exceeded with url: /feed (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7f132fb9ba70>: Failed to resolve 'headlines.yahoo.co.jp' ([Errno -2] Name or service not known)\"))"
+    },
+    {
+      "url": "https://headlines.yahoo.co.jp/rss",
+      "status": "error",
+      "error": "HTTPSConnectionPool(host='headlines.yahoo.co.jp', port=443): Max retries exceeded with url: /rss (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7f132f7f2c60>: Failed to resolve 'headlines.yahoo.co.jp' ([Errno -2] Name or service not known)\"))"
+    },
+    {
+      "url": "https://headlines.yahoo.co.jp/atom.xml",
+      "status": "error",
+      "error": "HTTPSConnectionPool(host='headlines.yahoo.co.jp', port=443): Max retries exceeded with url: /atom.xml (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7f132f7f2420>: Failed to resolve 'headlines.yahoo.co.jp' ([Errno -2] Name or service not known)\"))"
+    },
+    {
+      "url": "https://headlines.yahoo.co.jp/rss.xml",
+      "status": "error",
+      "error": "HTTPSConnectionPool(host='headlines.yahoo.co.jp', port=443): Max retries exceeded with url: /rss.xml (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7f132f7f3620>: Failed to resolve 'headlines.yahoo.co.jp' ([Errno -2] Name or service not known)\"))"
+    },
+    {
+      "url": "https://headlines.yahoo.co.jp/feed.xml",
+      "status": "error",
+      "error": "HTTPSConnectionPool(host='headlines.yahoo.co.jp', port=443): Max retries exceeded with url: /feed.xml (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7f132f7f3c50>: Failed to resolve 'headlines.yahoo.co.jp' ([Errno -2] Name or service not known)\"))"
+    },
+    {
+      "url": "https://headlines.yahoo.co.jp/feeds/posts/default?alt=rss",
+      "status": "error",
+      "error": "HTTPSConnectionPool(host='headlines.yahoo.co.jp', port=443): Max retries exceeded with url: /feeds/posts/default?alt=rss (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7f132f834650>: Failed to resolve 'headlines.yahoo.co.jp' ([Errno -2] Name or service not known)\"))"
+    },
+    {
+      "url": "https://headlines.yahoo.co.jp/index.rdf",
+      "status": "error",
+      "error": "HTTPSConnectionPool(host='headlines.yahoo.co.jp', port=443): Max retries exceeded with url: /index.rdf (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7f132f834fe0>: Failed to resolve 'headlines.yahoo.co.jp' ([Errno -2] Name or service not known)\"))"
+    },
+    {
+      "url": "https://headlines.yahoo.co.jp/feeds",
+      "status": "error",
+      "error": "HTTPSConnectionPool(host='headlines.yahoo.co.jp', port=443): Max retries exceeded with url: /feeds (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7f132f7f3ad0>: Failed to resolve 'headlines.yahoo.co.jp' ([Errno -2] Name or service not known)\"))"
+    },
+    {
+      "url": "https://headlines.yahoo.co.jp/feed/",
+      "status": "error",
+      "error": "HTTPSConnectionPool(host='headlines.yahoo.co.jp', port=443): Max retries exceeded with url: /feed/ (Caused by NameResolutionError(\"<urllib3.connection.HTTPSConnection object at 0x7f132f7f3140>: Failed to resolve 'headlines.yahoo.co.jp' ([Errno -2] Name or service not known)\"))"
+    },
+    {
+      "url": "http://headlines.yahoo.co.jp/feed",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='headlines.yahoo.co.jp', port=80): Max retries exceeded with url: /feed (Caused by NameResolutionError(\"<urllib3.connection.HTTPConnection object at 0x7f132fb99be0>: Failed to resolve 'headlines.yahoo.co.jp' ([Errno -2] Name or service not known)\"))"
+    },
+    {
+      "url": "http://headlines.yahoo.co.jp/rss",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='headlines.yahoo.co.jp', port=80): Max retries exceeded with url: /rss (Caused by NameResolutionError(\"<urllib3.connection.HTTPConnection object at 0x7f132f835280>: Failed to resolve 'headlines.yahoo.co.jp' ([Errno -2] Name or service not known)\"))"
+    },
+    {
+      "url": "http://headlines.yahoo.co.jp/atom.xml",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='headlines.yahoo.co.jp', port=80): Max retries exceeded with url: /atom.xml (Caused by NameResolutionError(\"<urllib3.connection.HTTPConnection object at 0x7f132f835b80>: Failed to resolve 'headlines.yahoo.co.jp' ([Errno -2] Name or service not known)\"))"
+    },
+    {
+      "url": "http://headlines.yahoo.co.jp/rss.xml",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='headlines.yahoo.co.jp', port=80): Max retries exceeded with url: /rss.xml (Caused by NameResolutionError(\"<urllib3.connection.HTTPConnection object at 0x7f132fb99be0>: Failed to resolve 'headlines.yahoo.co.jp' ([Errno -2] Name or service not known)\"))"
+    },
+    {
+      "url": "http://headlines.yahoo.co.jp/feed.xml",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='headlines.yahoo.co.jp', port=80): Max retries exceeded with url: /feed.xml (Caused by NameResolutionError(\"<urllib3.connection.HTTPConnection object at 0x7f132f7f3680>: Failed to resolve 'headlines.yahoo.co.jp' ([Errno -2] Name or service not known)\"))"
+    },
+    {
+      "url": "http://headlines.yahoo.co.jp/feeds/posts/default?alt=rss",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='headlines.yahoo.co.jp', port=80): Max retries exceeded with url: /feeds/posts/default?alt=rss (Caused by NameResolutionError(\"<urllib3.connection.HTTPConnection object at 0x7f132f7f3dd0>: Failed to resolve 'headlines.yahoo.co.jp' ([Errno -2] Name or service not known)\"))"
+    },
+    {
+      "url": "http://headlines.yahoo.co.jp/index.rdf",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='headlines.yahoo.co.jp', port=80): Max retries exceeded with url: /index.rdf (Caused by NameResolutionError(\"<urllib3.connection.HTTPConnection object at 0x7f132f835880>: Failed to resolve 'headlines.yahoo.co.jp' ([Errno -2] Name or service not known)\"))"
+    },
+    {
+      "url": "http://headlines.yahoo.co.jp/feeds",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='headlines.yahoo.co.jp', port=80): Max retries exceeded with url: /feeds (Caused by NameResolutionError(\"<urllib3.connection.HTTPConnection object at 0x7f132f834200>: Failed to resolve 'headlines.yahoo.co.jp' ([Errno -2] Name or service not known)\"))"
+    },
+    {
+      "url": "http://headlines.yahoo.co.jp/feed/",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='headlines.yahoo.co.jp', port=80): Max retries exceeded with url: /feed/ (Caused by NameResolutionError(\"<urllib3.connection.HTTPConnection object at 0x7f132f836a50>: Failed to resolve 'headlines.yahoo.co.jp' ([Errno -2] Name or service not known)\"))"
+    }
+  ],
+  "manablog.org": [
+    {
+      "url": "https://manablog.org/feed",
+      "status": "validated",
+      "entries": 10
+    },
+    {
+      "url": "https://manablog.org/rss",
+      "status": "validated",
+      "entries": 10
+    },
+    {
+      "url": "https://manablog.org/rss.xml",
+      "status": "validated",
+      "entries": 50
+    },
+    {
+      "url": "https://manablog.org/feed/",
+      "status": "validated",
+      "entries": 10
+    },
+    {
+      "url": "http://manablog.org/feed",
+      "status": "validated",
+      "entries": 10
+    },
+    {
+      "url": "http://manablog.org/rss",
+      "status": "validated",
+      "entries": 10
+    },
+    {
+      "url": "http://manablog.org/rss.xml",
+      "status": "validated",
+      "entries": 50
+    },
+    {
+      "url": "http://manablog.org/feed/",
+      "status": "validated",
+      "entries": 10
+    },
+    {
+      "url": "https://manablog.org/atom.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://manablog.org/feed.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://manablog.org/feeds/posts/default?alt=rss",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://manablog.org/index.rdf",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://manablog.org/feeds",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://manablog.org/atom.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://manablog.org/feed.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://manablog.org/feeds/posts/default?alt=rss",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://manablog.org/index.rdf",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://manablog.org/feeds",
+      "status": "http_error",
+      "http_status": 404
+    }
+  ],
+  "news.yahoo.co.jp": [
+    {
+      "url": "https://news.yahoo.co.jp/feed",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://news.yahoo.co.jp/rss",
+      "status": "no_entries"
+    },
+    {
+      "url": "https://news.yahoo.co.jp/atom.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://news.yahoo.co.jp/rss.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://news.yahoo.co.jp/feed.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://news.yahoo.co.jp/feeds/posts/default?alt=rss",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://news.yahoo.co.jp/index.rdf",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://news.yahoo.co.jp/feeds",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://news.yahoo.co.jp/feed/",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://news.yahoo.co.jp/feed",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://news.yahoo.co.jp/rss",
+      "status": "no_entries"
+    },
+    {
+      "url": "http://news.yahoo.co.jp/atom.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://news.yahoo.co.jp/rss.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://news.yahoo.co.jp/feed.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://news.yahoo.co.jp/feeds/posts/default?alt=rss",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://news.yahoo.co.jp/index.rdf",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://news.yahoo.co.jp/feeds",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://news.yahoo.co.jp/feed/",
+      "status": "http_error",
+      "http_status": 404
+    }
+  ],
+  "qiita.com": [
+    {
+      "url": "https://qiita.com/feed",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://qiita.com/rss",
+      "status": "parsed_bozo",
+      "entries": 0
+    },
+    {
+      "url": "https://qiita.com/atom.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://qiita.com/rss.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://qiita.com/feed.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://qiita.com/feeds/posts/default?alt=rss",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://qiita.com/index.rdf",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://qiita.com/feeds",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://qiita.com/feed/",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://qiita.com/feed",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://qiita.com/rss",
+      "status": "parsed_bozo",
+      "entries": 0
+    },
+    {
+      "url": "http://qiita.com/atom.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://qiita.com/rss.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://qiita.com/feed.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://qiita.com/feeds/posts/default?alt=rss",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://qiita.com/index.rdf",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://qiita.com/feeds",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://qiita.com/feed/",
+      "status": "http_error",
+      "http_status": 404
+    }
+  ],
+  "sinshaerabi.com": [
+    {
+      "url": "https://sinshaerabi.com/feed",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://sinshaerabi.com/rss",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://sinshaerabi.com/atom.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://sinshaerabi.com/rss.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://sinshaerabi.com/feed.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://sinshaerabi.com/feeds/posts/default?alt=rss",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://sinshaerabi.com/index.rdf",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://sinshaerabi.com/feeds",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://sinshaerabi.com/feed/",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://sinshaerabi.com/feed",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://sinshaerabi.com/rss",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://sinshaerabi.com/atom.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://sinshaerabi.com/rss.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://sinshaerabi.com/feed.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://sinshaerabi.com/feeds/posts/default?alt=rss",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://sinshaerabi.com/index.rdf",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://sinshaerabi.com/feeds",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://sinshaerabi.com/feed/",
+      "status": "http_error",
+      "http_status": 404
+    }
+  ],
+  "the360.life": [
+    {
+      "url": "https://the360.life/feed",
+      "status": "parsed_bozo",
+      "entries": 0
+    },
+    {
+      "url": "https://the360.life/rss",
+      "status": "parsed_bozo",
+      "entries": 0
+    },
+    {
+      "url": "https://the360.life/atom.xml",
+      "status": "parsed_bozo",
+      "entries": 0
+    },
+    {
+      "url": "https://the360.life/rss.xml",
+      "status": "parsed_bozo",
+      "entries": 0
+    },
+    {
+      "url": "https://the360.life/feed.xml",
+      "status": "parsed_bozo",
+      "entries": 0
+    },
+    {
+      "url": "https://the360.life/feeds/posts/default?alt=rss",
+      "status": "parsed_bozo",
+      "entries": 0
+    },
+    {
+      "url": "https://the360.life/index.rdf",
+      "status": "parsed_bozo",
+      "entries": 0
+    },
+    {
+      "url": "https://the360.life/feeds",
+      "status": "parsed_bozo",
+      "entries": 0
+    },
+    {
+      "url": "https://the360.life/feed/",
+      "status": "parsed_bozo",
+      "entries": 0
+    },
+    {
+      "url": "http://the360.life/feed",
+      "status": "parsed_bozo",
+      "entries": 0
+    },
+    {
+      "url": "http://the360.life/rss",
+      "status": "parsed_bozo",
+      "entries": 0
+    },
+    {
+      "url": "http://the360.life/atom.xml",
+      "status": "parsed_bozo",
+      "entries": 0
+    },
+    {
+      "url": "http://the360.life/rss.xml",
+      "status": "parsed_bozo",
+      "entries": 0
+    },
+    {
+      "url": "http://the360.life/feed.xml",
+      "status": "parsed_bozo",
+      "entries": 0
+    },
+    {
+      "url": "http://the360.life/feeds/posts/default?alt=rss",
+      "status": "parsed_bozo",
+      "entries": 0
+    },
+    {
+      "url": "http://the360.life/index.rdf",
+      "status": "parsed_bozo",
+      "entries": 0
+    },
+    {
+      "url": "http://the360.life/feeds",
+      "status": "parsed_bozo",
+      "entries": 0
+    },
+    {
+      "url": "http://the360.life/feed/",
+      "status": "parsed_bozo",
+      "entries": 0
+    }
+  ],
+  "www.carlease-online.jp": [
+    {
+      "url": "https://www.carlease-online.jp/feed",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://www.carlease-online.jp/rss",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://www.carlease-online.jp/atom.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://www.carlease-online.jp/rss.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://www.carlease-online.jp/feed.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://www.carlease-online.jp/feeds/posts/default?alt=rss",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://www.carlease-online.jp/index.rdf",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://www.carlease-online.jp/feeds",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://www.carlease-online.jp/feed/",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://www.carlease-online.jp/feed",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://www.carlease-online.jp/rss",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://www.carlease-online.jp/atom.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://www.carlease-online.jp/rss.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://www.carlease-online.jp/feed.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://www.carlease-online.jp/feeds/posts/default?alt=rss",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://www.carlease-online.jp/index.rdf",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://www.carlease-online.jp/feeds",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://www.carlease-online.jp/feed/",
+      "status": "http_error",
+      "http_status": 404
+    }
+  ],
+  "www.niconori.jp": [
+    {
+      "url": "https://www.niconori.jp/feed",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://www.niconori.jp/rss",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://www.niconori.jp/atom.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://www.niconori.jp/rss.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://www.niconori.jp/feed.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://www.niconori.jp/feeds/posts/default?alt=rss",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://www.niconori.jp/index.rdf",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://www.niconori.jp/feeds",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://www.niconori.jp/feed/",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://www.niconori.jp/feed",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://www.niconori.jp/rss",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://www.niconori.jp/atom.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://www.niconori.jp/rss.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://www.niconori.jp/feed.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://www.niconori.jp/feeds/posts/default?alt=rss",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://www.niconori.jp/index.rdf",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://www.niconori.jp/feeds",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://www.niconori.jp/feed/",
+      "status": "http_error",
+      "http_status": 404
+    }
+  ],
+  "www.sejuku.net": [
+    {
+      "url": "https://www.sejuku.net/feed",
+      "status": "no_entries"
+    },
+    {
+      "url": "https://www.sejuku.net/rss",
+      "status": "no_entries"
+    },
+    {
+      "url": "https://www.sejuku.net/atom.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://www.sejuku.net/rss.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://www.sejuku.net/feed.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://www.sejuku.net/feeds/posts/default?alt=rss",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://www.sejuku.net/index.rdf",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://www.sejuku.net/feeds",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://www.sejuku.net/feed/",
+      "status": "no_entries"
+    },
+    {
+      "url": "http://www.sejuku.net/feed",
+      "status": "no_entries"
+    },
+    {
+      "url": "http://www.sejuku.net/rss",
+      "status": "no_entries"
+    },
+    {
+      "url": "http://www.sejuku.net/atom.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://www.sejuku.net/rss.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://www.sejuku.net/feed.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://www.sejuku.net/feeds/posts/default?alt=rss",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://www.sejuku.net/index.rdf",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://www.sejuku.net/feeds",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://www.sejuku.net/feed/",
+      "status": "no_entries"
+    }
+  ],
+  "www.youtube.com": [
+    {
+      "url": "https://www.youtube.com/feed",
+      "status": "parsed_bozo",
+      "entries": 0
+    },
+    {
+      "url": "https://www.youtube.com/rss",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://www.youtube.com/atom.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://www.youtube.com/rss.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://www.youtube.com/feed.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://www.youtube.com/feeds/posts/default?alt=rss",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://www.youtube.com/index.rdf",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://www.youtube.com/feeds",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "https://www.youtube.com/feed/",
+      "status": "parsed_bozo",
+      "entries": 0
+    },
+    {
+      "url": "http://www.youtube.com/feed",
+      "status": "parsed_bozo",
+      "entries": 0
+    },
+    {
+      "url": "http://www.youtube.com/rss",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://www.youtube.com/atom.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://www.youtube.com/rss.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://www.youtube.com/feed.xml",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://www.youtube.com/feeds/posts/default?alt=rss",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://www.youtube.com/index.rdf",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://www.youtube.com/feeds",
+      "status": "http_error",
+      "http_status": 404
+    },
+    {
+      "url": "http://www.youtube.com/feed/",
+      "status": "parsed_bozo",
+      "entries": 0
+    }
+  ]
+}
