@@ -5,8 +5,10 @@ __pycache__/
 # Ignore environment files
 .env
 
-# Ignore generated data files
-/data/
+# Ignore generated data files, but not the source files
+/data/*.json
+/data/*.log
+/data/temp_*.json
 
 # Ignore log files
 /logs/
