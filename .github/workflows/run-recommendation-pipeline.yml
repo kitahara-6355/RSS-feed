@@ -1,0 +1,37 @@
+name: Run Recommendation Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      top_domains:
+        description: 'Number of top domains to process'
+        required: false
+        default: '10'
+
+jobs:
+  build-and-recommend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Import Sources script
+        run: python src/import_sources.py
+
+      - name: Run Recommendation script
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+        run: |
+          python src/recommend_feeds.py \
+            --imported data/imported_sources.json \
+            --top ${{ github.event.inputs.top_domains }} \
+            --out data/recommended_feeds.json
