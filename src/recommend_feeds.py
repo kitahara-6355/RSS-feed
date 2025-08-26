@@ -157,7 +157,7 @@ def push_to_notion(entries, notion_token, notion_db_id):
         candidate_url = top.get("url") if top else None
         confidence = "validated" if top and top.get("status") == "validated" else "need-review"
         props = {
-            "Source Domain": {"rich_text": [{"text": {"content": ent["domain"]}}]},
+            "Source Domain": {"title": [{"text": {"content": ent["domain"]}}]},
             "Candidate RSS": {"url": candidate_url} if candidate_url else {},
             "Confidence": {"select": {"name": confidence}},
             "Tags": {"multi_select": [{"name": t} for t in ent.get("tags", [])]} if ent.get("tags") else {},
