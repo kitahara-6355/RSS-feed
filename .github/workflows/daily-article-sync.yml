@@ -3,8 +3,8 @@ name: RSS to Notion AI Sync
 
 on:
   schedule:
-    # Runs every 6 hours. You can adjust this schedule.
-    - cron: '0 */6 * * *'
+    # Runs at 21:00 UTC (6:00 AM JST) every day.
+    - cron: '0 21 * * *'
 
   # Allows manual runs from the Actions tab
   workflow_dispatch:
