@@ -179,7 +179,7 @@ def main():
     p.add_argument("--out", default="data/recommended_feeds.json")
     p.add_argument("--dry-run", action="store_true", help="Do not push to Notion")
     p.add_argument("--notion_token", default=os.environ.get("NOTION_TOKEN"))
-    p.add_argument("--notion_db", default=os.environ.get("NOTION_DATABASE_ID"))
+    p.add_argument("--notion_db", default=os.environ.get("NOTION_RECOMMENDED_FEEDS_DB_ID"))
     args = p.parse_args()
 
     imported = load_imported(args.imported)
