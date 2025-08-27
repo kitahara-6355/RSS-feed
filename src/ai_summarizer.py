@@ -6,6 +6,7 @@ import requests
 from bs4 import BeautifulSoup
 import google.generativeai as genai
 from typing import Optional
+from langdetect import detect, LangDetectException
 
 class AISummarizer:
     """A wrapper for scraping content and using Gemini to summarize it."""
@@ -26,14 +27,11 @@ class AISummarizer:
 
             soup = BeautifulSoup(response.text, 'html.parser')
 
-            # Find the main content (this is a heuristic and may need improvement)
-            # Look for common tags like 'article', 'main', or divs with relevant IDs/classes.
             main_content = soup.find('article') or soup.find('main') or soup.body
 
-            # Get text and clean it up
             if main_content:
                 text = ' '.join(p.get_text() for p in main_content.find_all('p'))
-                return ' '.join(text.split()) # Normalize whitespace
+                return ' '.join(text.split())
             return None
         except Exception as e:
             print(f"    - ❌ ERROR scraping {url}: {e}")
@@ -43,16 +41,27 @@ class AISummarizer:
 
     def summarize(self, url: str) -> Optional[str]:
         """
-        Generates a Japanese summary for a given article URL, regardless of source language.
+        Generates a Japanese summary for a given article URL.
+        It detects the language and adjusts the prompt accordingly.
         """
         content = self._scrape_article_text(url)
         if not content:
             return None
 
-        print(f"    - Generating Japanese summary for: {url[:70]}...")
+        try:
+            lang = detect(content)
+        except LangDetectException:
+            lang = "unknown" # Default if language detection fails
+
+        print(f"    - Generating Japanese summary for: {url[:70]}... (Detected language: {lang})")
+
+        if lang == 'ja':
+            prompt_template = "以下の記事本文を、内容の要点を3〜5文程度の、自然で分かりやすい日本語で要約してください。"
+        else:
+            prompt_template = "以下の英語の記事本文を、内容の要点を3〜5文程度の、自然で分かりやすい日本語で要約してください。"
 
         prompt = f"""
-        以下の英語の記事本文を、内容の要点を3〜5文程度の、自然で分かりやすい日本語で要約してください。
+        {prompt_template}
 
         ---
         記事本文:
