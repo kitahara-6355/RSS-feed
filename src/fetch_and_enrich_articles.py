@@ -1,50 +1,45 @@
+# src/fetch_and_enrich_articles.py
 import os
 import json
-import feedparser
 import requests
 from datetime import datetime
+from pathlib import Path
 
-OUTPUT_FILE = "data/articles.json"
+DATA_DIR = Path("data")
+ARTICLES_FILE = DATA_DIR / "articles.json"
 
-def fetch_articles():
-    # RSSソース一覧を読み込み
-    with open("data/consolidated_sources.json", "r") as f:
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+
+def fetch_article(url):
+    # サンプル: 記事を取得してAIで要約・タグ付け
+    # 実際はGoogle Gemini AI APIなどを呼び出す
+    return {
+        "url": url,
+        "title": f"Title for {url}",
+        "summary": f"Summary generated for {url}",
+        "tags": ["tag1", "tag2"],
+        "fetched_at": datetime.utcnow().isoformat()
+    }
+
+def main():
+    DATA_DIR.mkdir(exist_ok=True)
+    sources_file = DATA_DIR / "consolidated_sources.json"
+    if not sources_file.exists():
+        raise FileNotFoundError("consolidated_sources.json not found")
+
+    with sources_file.open("r", encoding="utf-8") as f:
         sources = json.load(f)
 
     articles = []
-    for source in sources:
-        rss_url = source.get("rss")
-        if not rss_url:
-            continue
-
-        print(f"Fetching from {rss_url} ...")
-        feed = feedparser.parse(rss_url)
-
-        for entry in feed.entries[:20]:  # 最新20件に制限
-            article = {
-                "title": entry.title,
-                "link": entry.link,
-                "published": getattr(entry, "published", None),
-                "summary": getattr(entry, "summary", ""),
-                "source": rss_url,
-                "retrieved_at": datetime.utcnow().isoformat()
-            }
+    for url in sources.get("urls", []):
+        try:
+            article = fetch_article(url)
             articles.append(article)
+        except Exception as e:
+            print(f"Failed to fetch {url}: {e}")
 
-    # 既存ファイルとマージ
-    if os.path.exists(OUTPUT_FILE):
-        with open(OUTPUT_FILE, "r") as f:
-            existing = json.load(f)
-    else:
-        existing = []
-
-    all_articles = existing + articles
-
-    # 保存
-    with open(OUTPUT_FILE, "w") as f:
-        json.dump(all_articles, f, indent=2, ensure_ascii=False)
-
-    print(f"Saved {len(articles)} new articles. Total: {len(all_articles)}")
+    with ARTICLES_FILE.open("w", encoding="utf-8") as f:
+        json.dump(articles, f, ensure_ascii=False, indent=2)
 
 if __name__ == "__main__":
-    fetch_articles()
+    main()
