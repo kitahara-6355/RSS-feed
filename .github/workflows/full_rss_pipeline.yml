@@ -2,50 +2,39 @@ name: Full RSS Pipeline
 
 on:
   schedule:
-    - cron: '0 */6 * * *' # 6時間ごとに自動実行
-  workflow_dispatch:  # 手動実行も可能
+    - cron: '0 */6 * * *'  # 6時間ごと
+  workflow_dispatch:
 
 jobs:
-  fetch-enrich-and-push:
+  full_pipeline:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install requests
 
-      - name: Fetch and enrich articles
-        run: python src/fetch_and_enrich_articles.py
+      - name: Consolidate Sources
+        run: python src/consolidate_sources.py
+
+      - name: Fetch and Enrich Articles
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
-          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+        run: python src/fetch_and_enrich_articles.py
 
-      - name: Calculate priority scores
+      - name: Calculate Priority Scores
         run: python src/calculate_priority_scores.py
-        env:
-          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
-          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
 
-      - name: Push recommendations to Notion
-        run: python src/push_recommendations_to_notion.py
+      - name: Push to Notion
         env:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
           NOTION_SUGGESTIONS_PAGE_ID: ${{ secrets.NOTION_SUGGESTIONS_PAGE_ID }}
-
-      - name: Commit updated articles.json
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add data/articles.json
-          git commit -m "Update articles.json" || echo "No changes to commit"
-          git push
+        run: python src/push_recommendations_to_notion.py
