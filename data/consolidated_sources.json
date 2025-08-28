@@ -1,0 +1,6 @@
+{
+  "sources": [
+    "https://example.com/rss1.xml",
+    "https://example.com/rss2.xml"
+  ]
+}
