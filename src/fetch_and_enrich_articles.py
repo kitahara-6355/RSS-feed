@@ -1,45 +1,74 @@
 # src/fetch_and_enrich_articles.py
-import os
 import json
+import os
 import requests
 from datetime import datetime
-from pathlib import Path
 
-DATA_DIR = Path("data")
-ARTICLES_FILE = DATA_DIR / "articles.json"
+DATA_DIR = "data"
+CONSOLIDATED_FILE = os.path.join(DATA_DIR, "consolidated_sources.json")
+ARTICLES_FILE = os.path.join(DATA_DIR, "articles.json")
 
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-
-def fetch_article(url):
-    # サンプル: 記事を取得してAIで要約・タグ付け
-    # 実際はGoogle Gemini AI APIなどを呼び出す
-    return {
-        "url": url,
-        "title": f"Title for {url}",
-        "summary": f"Summary generated for {url}",
-        "tags": ["tag1", "tag2"],
-        "fetched_at": datetime.utcnow().isoformat()
-    }
+def fetch_articles_from_rss(url):
+    """
+    RSSから記事を取得する簡易版
+    実運用ではfeedparserなどを使って正確に取得可能
+    """
+    # ここではテスト用にダミー記事を返す
+    return [
+        {
+            "title": f"Dummy article from {url}",
+            "url": url,
+            "source": url,
+            "author": "Unknown",
+            "publication_date": datetime.utcnow().isoformat(),
+            "tags": [],
+            "summary": ""
+        }
+    ]
 
 def main():
-    DATA_DIR.mkdir(exist_ok=True)
-    sources_file = DATA_DIR / "consolidated_sources.json"
-    if not sources_file.exists():
-        raise FileNotFoundError("consolidated_sources.json not found")
+    # consolidated_sources.json の読み込み
+    if not os.path.exists(CONSOLIDATED_FILE):
+        print(f"❌ {CONSOLIDATED_FILE} が見つかりません")
+        return
 
-    with sources_file.open("r", encoding="utf-8") as f:
-        sources = json.load(f)
-
-    articles = []
-    for url in sources.get("urls", []):
+    with open(CONSOLIDATED_FILE, "r", encoding="utf-8") as f:
         try:
-            article = fetch_article(url)
-            articles.append(article)
-        except Exception as e:
-            print(f"Failed to fetch {url}: {e}")
+            sources = json.load(f)  # リスト型を想定
+        except json.JSONDecodeError:
+            print("❌ JSONの読み込みに失敗しました")
+            return
 
-    with ARTICLES_FILE.open("w", encoding="utf-8") as f:
+    if not isinstance(sources, list):
+        print("❌ consolidated_sources.json はリスト形式である必要があります")
+        return
+
+    # 既存 articles.json を読み込む（存在しない場合は空リスト）
+    if os.path.exists(ARTICLES_FILE):
+        with open(ARTICLES_FILE, "r", encoding="utf-8") as f:
+            try:
+                articles = json.load(f)
+            except json.JSONDecodeError:
+                articles = []
+    else:
+        articles = []
+
+    new_articles_count = 0
+
+    for url in sources:
+        fetched = fetch_articles_from_rss(url)
+        for article in fetched:
+            # 重複チェック
+            if any(a["url"] == article["url"] for a in articles):
+                continue
+            articles.append(article)
+            new_articles_count += 1
+
+    # articles.json に保存
+    with open(ARTICLES_FILE, "w", encoding="utf-8") as f:
         json.dump(articles, f, ensure_ascii=False, indent=2)
+
+    print(f"✅ 記事取得完了: {new_articles_count} 件追加")
 
 if __name__ == "__main__":
     main()
