@@ -1,74 +1,69 @@
-# src/fetch_and_enrich_articles.py
 import json
-import os
 import requests
 from datetime import datetime
+from pathlib import Path
 
-DATA_DIR = "data"
-CONSOLIDATED_FILE = os.path.join(DATA_DIR, "consolidated_sources.json")
-ARTICLES_FILE = os.path.join(DATA_DIR, "articles.json")
+# 保存先ファイル
+ARTICLES_FILE = Path("data/articles.json")
+SOURCES_FILE = Path("data/consolidated_sources.json")
 
-def fetch_articles_from_rss(url):
+def fetch_articles_from_rss(rss_url):
     """
-    RSSから記事を取得する簡易版
-    実運用ではfeedparserなどを使って正確に取得可能
+    RSSフィードから記事を取得するダミー関数
+    実際には feedparser などを使用して解析可能
     """
-    # ここではテスト用にダミー記事を返す
-    return [
-        {
-            "title": f"Dummy article from {url}",
-            "url": url,
-            "source": url,
-            "author": "Unknown",
-            "publication_date": datetime.utcnow().isoformat(),
-            "tags": [],
-            "summary": ""
-        }
-    ]
+    # 今回はテスト用にダミー記事を返す
+    return [{
+        "title": f"Sample Article from {rss_url}",
+        "url": rss_url + "/sample-article",
+        "author": "Sample Author",
+        "source": rss_url,
+        "publication_date": datetime.now().isoformat(),
+        "tags": [],
+        "summary": "",
+    }]
+
+def enrich_article(article):
+    """
+    記事のAIタグ付けや日本語要約などの加工処理
+    ここではテスト用にダミーで設定
+    """
+    article["tags"] = ["test-tag"]
+    article["summary"] = f"Summary for {article['title']}"
+    return article
 
 def main():
-    # consolidated_sources.json の読み込み
-    if not os.path.exists(CONSOLIDATED_FILE):
-        print(f"❌ {CONSOLIDATED_FILE} が見つかりません")
-        return
+    # consolidated_sources.jsonを読み込む
+    with open(SOURCES_FILE, "r", encoding="utf-8") as f:
+        sources = json.load(f)
 
-    with open(CONSOLIDATED_FILE, "r", encoding="utf-8") as f:
-        try:
-            sources = json.load(f)  # リスト型を想定
-        except json.JSONDecodeError:
-            print("❌ JSONの読み込みに失敗しました")
-            return
+    all_articles = []
 
-    if not isinstance(sources, list):
-        print("❌ consolidated_sources.json はリスト形式である必要があります")
-        return
+    # sources["sources"] に従ってループ
+    for url in sources["sources"]:
+        print(f"Fetching articles from {url}")
+        articles = fetch_articles_from_rss(url)
+        for article in articles:
+            enriched = enrich_article(article)
+            all_articles.append(enriched)
 
-    # 既存 articles.json を読み込む（存在しない場合は空リスト）
-    if os.path.exists(ARTICLES_FILE):
+    # 既存 articles.json があれば読み込み
+    if ARTICLES_FILE.exists():
         with open(ARTICLES_FILE, "r", encoding="utf-8") as f:
-            try:
-                articles = json.load(f)
-            except json.JSONDecodeError:
-                articles = []
+            existing_articles = json.load(f)
     else:
-        articles = []
+        existing_articles = []
 
-    new_articles_count = 0
+    # 重複チェック (URL単位)
+    existing_urls = {a["url"] for a in existing_articles}
+    new_articles = [a for a in all_articles if a["url"] not in existing_urls]
 
-    for url in sources:
-        fetched = fetch_articles_from_rss(url)
-        for article in fetched:
-            # 重複チェック
-            if any(a["url"] == article["url"] for a in articles):
-                continue
-            articles.append(article)
-            new_articles_count += 1
-
-    # articles.json に保存
+    # 既存記事とマージして保存
+    merged_articles = existing_articles + new_articles
     with open(ARTICLES_FILE, "w", encoding="utf-8") as f:
-        json.dump(articles, f, ensure_ascii=False, indent=2)
+        json.dump(merged_articles, f, ensure_ascii=False, indent=2)
 
-    print(f"✅ 記事取得完了: {new_articles_count} 件追加")
+    print(f"Saved {len(new_articles)} new articles. Total: {len(merged_articles)}")
 
 if __name__ == "__main__":
     main()
