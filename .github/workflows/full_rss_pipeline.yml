@@ -1,59 +1,51 @@
 name: Full RSS Pipeline
 
 on:
-  workflow_dispatch:   # 手動実行用
   schedule:
-    - cron: '0 */6 * * *'  # 6時間ごとに自動実行（UTC）
+    - cron: '0 */6 * * *' # 6時間ごとに自動実行
+  workflow_dispatch:  # 手動実行も可能
 
 jobs:
-  rss_pipeline:
+  fetch-enrich-and-push:
     runs-on: ubuntu-latest
     steps:
-      # 1. リポジトリをチェックアウト
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 2. Python 環境セットアップ
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
-      # 3. 依存関係のインストール
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # 4. consolidated_sources.json から記事取得・加工
-      - name: Fetch and Enrich Articles
+      - name: Fetch and enrich articles
+        run: python src/fetch_and_enrich_articles.py
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+
+      - name: Calculate priority scores
+        run: python src/calculate_priority_scores.py
         env:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-        run: |
-          python src/fetch_and_enrich_articles.py
 
-      # 5. 優先度スコア計算
-      - name: Calculate Priority Scores
-        run: |
-          python src/calculate_priority_scores.py
-
-      # 6. Notion にプッシュ
-      - name: Push Recommendations to Notion
+      - name: Push recommendations to Notion
+        run: python src/push_recommendations_to_notion.py
         env:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
           NOTION_SUGGESTIONS_PAGE_ID: ${{ secrets.NOTION_SUGGESTIONS_PAGE_ID }}
-        run: |
-          python src/push_recommendations_to_notion.py
 
-      # 7. 記事・スコアのコミット
-      - name: Commit updated data
+      - name: Commit updated articles.json
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
           git add data/articles.json
-          git add data/consolidated_sources.json
-          git commit -m "Update articles and priority scores" || echo "No changes to commit"
+          git commit -m "Update articles.json" || echo "No changes to commit"
           git push
