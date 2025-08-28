@@ -1,6 +1,6 @@
 {
   "sources": [
-    "https://note.com/takahiroanno/rss",
-    "https://note.com/takapon/rss"
+    "https://hnrss.org/frontpage", 
+    "https://www.reddit.com/r/python/.rss"
   ]
 }
