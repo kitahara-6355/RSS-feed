@@ -1,40 +1,40 @@
-name: Full RSS Pipeline
-
-on:
-  schedule:
-    - cron: '0 */6 * * *'  # 6時間ごと
-  workflow_dispatch:
-
-jobs:
-  full_pipeline:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests
-
-      - name: Consolidate Sources
-        run: python src/consolidate_sources.py
-
-      - name: Fetch and Enrich Articles
-        env:
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-        run: python src/fetch_and_enrich_articles.py
-
-      - name: Calculate Priority Scores
-        run: python src/calculate_priority_scores.py
-
-      - name: Push to Notion
-        env:
-          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
-          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
-          NOTION_SUGGESTIONS_PAGE_ID: ${{ secrets.NOTION_SUGGESTIONS_PAGE_ID }}
-        run: python src/push_recommendations_to_notion.py
+    1 name: Full RSS Pipeline
+    2 
+    3 on:
+    4   schedule:
+    5     - cron: '0 */6 * * *'  # 6時間ごと
+    6   workflow_dispatch:
+    7 
+    8 jobs:
+    9   full_pipeline:
+   10     runs-on: ubuntu-latest
+   11     steps:
+   12       - uses: actions/checkout@v3
+   13 
+   14       - name: Set up Python
+   15         uses: actions/setup-python@v4
+   16         with:
+   17           python-version: "3.11"
+   18 
+   19       - name: Install dependencies
+   20         run: |
+   21           python -m pip install --upgrade pip
+   22           pip install -r requirements.txt
+   23 
+   24       - name: Consolidate Sources
+   25         run: python src/consolidate_sources.py
+   26 
+   27       - name: Fetch and Enrich Articles
+   28         env:
+   29           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+   30         run: python src/fetch_and_enrich_articles.py
+   31 
+   32       - name: Calculate Priority Scores
+   33         run: python src/calculate_priority_scores.py
+   34 
+   35       - name: Push to Notion
+   36         env:
+   37           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+   38           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+   39           NOTION_SUGGESTIONS_PAGE_ID: ${{ secrets.NOTION_SUGGESTIONS_PAGE_ID }}
+   40         run: python src/push_recommendations_to_notion.py
