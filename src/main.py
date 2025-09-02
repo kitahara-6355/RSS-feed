@@ -42,7 +42,7 @@ def calculate_relevance_score(tags: list, source: str, profile: dict) -> float:
     # Default to 0 if no scores are found.
     all_scores = tag_scores + [source_score]
     max_score = max(all_scores) if all_scores else 0
-
+    
     return max_score
 
 def run():
@@ -79,14 +79,14 @@ def run():
 
             article_data_for_ai = {"title": title, "summary": entry.get("summary", ""), "link": link}
             tags = tagger.generate_tags(article_data_for_ai)
-
+            
             # --- Scoring and Filtering ---
-            relevance_score = calculate_relevance_score([t['name'] for t in tags], source_name, user_profile)
+            relevance_score = calculate_relevance_score(tags, source_name, user_profile)
             print(f"    - Relevance Score: {relevance_score:.2f}")
             if relevance_score < FILTERING_THRESHOLD:
-                print(f"    - 🗑️  Skipping (low score): {title}")
+                print(f"    - 🗑️  Skipping (low score):{title}")
                 continue # Skip to the next article
-
+            
             jp_summary = summarizer.summarize(link)
 
             published_time = datetime.now(timezone.utc)
@@ -97,7 +97,7 @@ def run():
                 "title": title, "url": link, "source": source_name,
                 "author": entry.get("author", "Unknown"),
                 "published_time": published_time,
-                "tags": [t['name'] for t in tags], # Pass clean list of strings
+                "tags": tags, # Pass clean list of strings
                 "summary": jp_summary
             }
 
