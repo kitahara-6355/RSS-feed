@@ -62,3 +62,37 @@ class AITagger:
             if self.logger:
                 self.logger.log_failure(component="AI_Tagger", article_data=article_data, error=e)
             return ["その他"]
+
+    def guess_author(self, article_data: Dict[str, Any]) -> str:
+        """
+        Guesses the author of an article based on its content or link.
+        """
+        title = article_data.get("title", "No Title")
+        link = article_data.get("link", "")
+        print(f"    - 🤔 Guessing author for: {title}")
+
+        prompt = f"""
+        以下の記事のタイトルとURLから、著者名もしくはサイト名を推測してください。
+        個人の名前、組織名、またはサイト名を一つだけ、最も確からしいものを回答してください。
+        全く不明な場合は、「Unknown」とだけ回答してください。
+
+        ---
+        タイトル: {title}
+        URL: {link}
+        ---
+
+        著者名/サイト名:
+        """
+
+        try:
+            response = self.model.generate_content(prompt)
+            author = response.text.strip()
+            if not author:
+                return "Unknown"
+            print(f"    - 🤖 AI guessed author: {author}")
+            return author
+        except Exception as e:
+            print(f"    - ❌ ERROR: Failed to guess author for '{title}'.")
+            if self.logger:
+                self.logger.log_failure(component="AI_Author_Guesser", article_data=article_data, error=e)
+            return "Unknown"

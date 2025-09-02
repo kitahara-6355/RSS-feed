@@ -93,9 +93,13 @@ def run():
             if hasattr(entry, "published_parsed") and entry.published_parsed is not None:
                 published_time = datetime.fromtimestamp(time.mktime(entry.published_parsed), tz=timezone.utc)
 
+            author = entry.get("author", "Unknown")
+            if author == "Unknown":
+                author = tagger.guess_author(article_data_for_ai)
+
             page_data_for_notion = {
                 "title": title, "url": link, "source": source_name,
-                "author": entry.get("author", "Unknown"),
+                "author": author,
                 "published_time": published_time,
                 "tags": tags, # Pass clean list of strings
                 "summary": jp_summary
