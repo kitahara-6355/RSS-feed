@@ -27,7 +27,7 @@ RSS_FEEDS = {
 
 # Gemini API rate limit: 15 requests per minute (free tier).
 # A 4.1 second delay ensures we stay under this limit (60 / 4.1 = 14.6 requests/min).
-API_DELAY_SECONDS = 4.1
+API_DELAY_SECONDS = 10
 
 # Articles with a relevance score below this threshold will not be added to Notion.
 # This score is calculated based on the user's interest profile.
