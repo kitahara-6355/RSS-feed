@@ -60,8 +60,9 @@ def run_enrichment():
             }
         ]
     }
-    # NOTE: The NotionClient wrapper does not have a generic query method, so we call the underlying client directly.
-    # This replaces the more specific `query_pages_to_enrich` to expand the script's functionality.
+    # NOTE: The NotionClient wrapper does not have a generic query method, so we call the underl
+client directly.
+    # This replaces the more specific `query_pages_to_enrich` to expand the script's functionali
     response = notion.notion.databases.query(
         database_id=notion.database_id,
         filter=enrich_filter
@@ -76,14 +77,14 @@ def run_enrichment():
         page_id = page["id"]
         properties = page.get("properties", {})
         title_prop = properties.get("Title", {}).get("title", [])
-        title = title_prop[0].get("text", {}).get("content", "No Title") if title_prop else "No Title"
+        title = title_prop[0].get("text", {}).get("content", "No Title") if title_prop else "No 
         url_prop = properties.get("URL", {})
         url = url_prop.get("url")
 
         print(f"\n🔄 Processing page: {title}")
 
         if not url:
-            print(f"    - ⏭️  Skip (no URL): {title}")
+            print(f"    - ⏭️  Skip (no URL):{title}")
             continue
 
         # 2. Determine which fields need to be populated and fetch content if necessary
@@ -95,12 +96,13 @@ def run_enrichment():
         if needs_tags or needs_summary or needs_author:
             article_content = summarizer._scrape_article_text(url)
             if not article_content:
-                print(f"    - ⏭️  Skip (could not fetch content): {title}")
+                print(f"    - ⏭️  Skip (could not fetch content):{title}")
                 continue
 
         # 3. Prepare data and generate missing information
         update_payload = {}
-        article_data_for_ai = {"title": title, "summary": article_content[:1000] if article_content else "", "link": url}
+        article_data_for_ai = {"title": title, "summary": article_content[:1000] if article_cont
+"", "link": url}
 
         if needs_tags:
             print("    - Generating AI Tags...")
@@ -112,13 +114,13 @@ def run_enrichment():
             print("    - Generating AI Author...")
             author = tagger.guess_author(article_data_for_ai)
             if author:
-                update_payload["Author"] = {"rich_text": [{"text": {"content": author}}]}}
+                update_payload["Author"] = {"rich_text": [{"text": {"content": author}}]}
 
         if needs_summary:
             print("    - Generating AI Summary (Headline)...")
             jp_summary = summarizer.summarize(url)
             if jp_summary:
-                update_payload["日本語要約"] = {"rich_text": [{"text": {"content": jp_summary}}]}}
+                update_payload["日本語要約"] = {"rich_text": [{"text": {"content": jp_summary}}]
 
         # 4. Update the Notion page if there's new data
         if update_payload:
@@ -131,7 +133,7 @@ def run_enrichment():
         else:
             print(f"    - ✅ No updates needed for this page.")
 
-        print(f"    - ⏱️ Waiting for {API_DELAY_SECONDS} seconds...")
+        print(f"    - ⏱️ Waiting for{API_DELAY_SECONDS} seconds...")
         time.sleep(API_DELAY_SECONDS)
 
     print("\n✅ Enrichment process finished successfully.")
