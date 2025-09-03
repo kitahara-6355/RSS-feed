@@ -94,7 +94,7 @@ def run():
                 published_time = datetime.fromtimestamp(time.mktime(entry.published_parsed), tz=timezone.utc)
 
             author = entry.get("author", "Unknown")
-            if author == "Unknown":
+            if author == "Unknown" or author == source_name:
                 author = tagger.guess_author(article_data_for_ai)
 
             page_data_for_notion = {
