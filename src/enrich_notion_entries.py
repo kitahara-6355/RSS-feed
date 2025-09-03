@@ -12,7 +12,7 @@ from notion_handler import NotionClient
 from ai_tagger import AITagger
 from ai_summarizer import AISummarizer
 from error_logger import ErrorLogger
-from rss_fetcher import get_source_from_url # Assuming this helper exists
+from rss_fetcher import get_source_from_url
 
 def run_enrichment():
     """
@@ -35,8 +35,22 @@ def run_enrichment():
         print(f"❌ ERROR: Failed to initialize clients. Reason: {e}")
         return
 
-    # 1. Find pages that need enrichment by querying for entries missing tags.
-    pages_to_enrich = notion.query_pages_to_enrich()
+    # 1. Find pages with a URL that are missing key enrichment data.
+    enrich_filter = {
+        "and": [
+            {"property": "URL", "url": {"is_not_empty": True}},
+            {
+                "or": [
+                    {"property": "Tags", "multi_select": {"is_empty": True}},
+                    {"property": "日本語要約", "rich_text": {"is_empty": True}},
+                    {"property": "Author", "rich_text": {"is_empty": True}},
+                    {"property": "Source", "multi_select": {"is_empty": True}},
+                ]
+            }
+        ]
+    }
+    
+    pages_to_enrich = notion.query_database(filter_conditions=enrich_filter)
 
     if not pages_to_enrich:
         print("✅ No pages to enrich. System finished.")
@@ -60,42 +74,37 @@ def run_enrichment():
             print(f"    - ⏭️  Skip (no URL): {title}")
             continue
 
-        # 2. Determine which fields need to be populated
-        needs_tags = not properties.get("Tags", {}).get("multi_select")
-        needs_summary = not properties.get("日本語要約", {}).get("rich_text")
-        needs_author = not properties.get("Author", {}).get("rich_text")
-        needs_source = not properties.get("Source", {}).get("multi_select")
-
         update_payload = {}
+        
+        # 2. Get the necessary data for AI processing
+        source = get_source_from_url(url)
         article_data_for_ai = {"title": title, "link": url}
-
+        
         # 3. Generate missing information using AI
-        if needs_tags:
+        if not properties.get("Tags", {}).get("multi_select"):
             tags = tagger.generate_tags(article_data_for_ai)
             if tags:
                 update_payload["Tags"] = {"multi_select": [{"name": tag} for tag in tags]}
 
-        if needs_author:
+        if not properties.get("Author", {}).get("rich_text"):
             author = tagger.guess_author(article_data_for_ai)
             if author and author != "Unknown":
-                update_payload["Author"] = {"rich_text": [{"text": {"content": author}}]}}
+                update_payload["Author"] = {"rich_text": [{"text": {"content": author}}]}
 
-        if needs_summary:
+        if not properties.get("日本語要約", {}).get("rich_text"):
             jp_summary = summarizer.summarize(url)
             if jp_summary:
-                update_payload["日本語要約"] = {"rich_text": [{"text": {"content": jp_summary}}]}}
-
+                update_payload["日本語要約"] = {"rich_text": [{"text": {"content": jp_summary}}]}
+        
         # 4. Update the Notion page if there's new data
         if update_payload:
             # Also update the source and publication date if they are missing
-            if needs_source:
-                source = get_source_from_url(url)
+            if not properties.get("Source", {}).get("multi_select"):
                 update_payload["Source"] = {"multi_select": [{"name": source}]}
             
-            # Update publication date to now if it's empty
             if not properties.get("Publication Date", {}).get("date"):
                 update_payload["Publication Date"] = {"date": {"start": datetime.now(timezone.utc).isoformat()}}
-
+            
             print("    - ⬆️  Updating Notion page with generated data...")
             notion.update_page_properties(page_id, update_payload)
         else:
