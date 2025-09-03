@@ -24,10 +24,10 @@ def load_user_profile(filepath: str = "user_profile.json") -> dict:
             print("🧠 User interest profile loaded successfully.")
             return profile
     except FileNotFoundError:
-        print("ℹ️ User profile not found. Running without personalized filtering.)
+        print("ℹ️ User profile not found. Running without personalized filtering.")
         return {"tags": {}, "sources": {}}
     except json.JSONDecodeError:
-        print("⚠️ WARN: Could not decode user profile. File might be corrupt.)
+        print("⚠️ WARN: Could not decode user profile. File might be corrupt.")
         return {"tags": {}, "sources": {}}
 
 def calculate_relevance_score(tags: list, source: str, profile: dict) -> float:
@@ -42,7 +42,7 @@ def calculate_relevance_score(tags: list, source: str, profile: dict) -> float:
     # Default to 0 if no scores are found.
     all_scores = tag_scores + [source_score]
     max_score = max(all_scores) if all_scores else 0
-
+    
     return max_score
 
 def run():
@@ -74,19 +74,19 @@ def run():
 
             if not link or notion.check_if_url_exists(link):
                 status = "no link" if not link else "already exists"
-                print(f"    - ⏭️  Skip {status}): {title}")
+                print(f"    - ⏭️  Skip ({status}): {title}")
                 continue
 
             article_data_for_ai = {"title": title, "summary": entry.get("summary", ""), "link": link}
             tags = tagger.generate_tags(article_data_for_ai)
-
+            
             # --- Scoring and Filtering ---
             relevance_score = calculate_relevance_score(tags, source_name, user_profile)
             print(f"    - Relevance Score: {relevance_score:.2f}")
             if relevance_score < FILTERING_THRESHOLD:
-                print(f"    - 🗑️  Skipping (low score){title}")
+                print(f"    - 🗑️  Skipping (low score): {title}")
                 continue # Skip to the next article
-
+            
             jp_summary = summarizer.summarize(link)
 
             published_time = datetime.now(timezone.utc)
@@ -107,7 +107,7 @@ def run():
 
             notion.create_page(page_data_for_notion)
 
-            print(f"    - ⏱️ Waiting for{API_DELAY_SECONDS} seconds...")
+            print(f"    - ⏱️ Waiting for {API_DELAY_SECONDS} seconds...")
             time.sleep(API_DELAY_SECONDS)
 
     print("\n✅ System finished successfully.")
