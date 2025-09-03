@@ -50,7 +50,17 @@ def run_enrichment():
         ]
     }
     
-    pages_to_enrich = notion.query_database(filter_conditions=enrich_filter)
+    try:
+        response = notion.notion.databases.query(
+            database_id=notion.database_id,
+            filter=enrich_filter
+        )
+        pages_to_enrich = response.get("results", [])
+    except Exception as e:
+        print(f"    - ❌ ERROR querying database: {e}")
+        if logger:
+            logger.log_failure(component="Enrichment_Query", article_data={"filter": enrich_filter}, error=e)
+        pages_to_enrich = []
 
     if not pages_to_enrich:
         print("✅ No pages to enrich. System finished.")
@@ -106,7 +116,13 @@ def run_enrichment():
                 update_payload["Publication Date"] = {"date": {"start": datetime.now(timezone.utc).isoformat()}}
             
             print("    - ⬆️  Updating Notion page with generated data...")
-            notion.update_page_properties(page_id, update_payload)
+            try:
+                notion.notion.pages.update(page_id=page_id, properties=update_payload)
+            except Exception as e:
+                print(f"    - ❌ Failed to update page {page_id}: {e}")
+                if logger:
+                    log_data = {"page_id": page_id, "properties": update_payload}
+                    logger.log_failure(component="Enrichment_Update", article_data=log_data, error=e)
         else:
             print("    - ✅ No updates needed for this page.")
 
