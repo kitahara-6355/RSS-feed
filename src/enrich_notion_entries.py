@@ -35,22 +35,8 @@ def run_enrichment():
         print(f"❌ ERROR: Failed to initialize clients. Reason: {e}")
         return
 
-    # 1. Find pages with a URL that are missing key enrichment data.
-    enrich_filter = {
-        "and": [
-            {"property": "URL", "url": {"is_not_empty": True}},
-            {
-                "or": [
-                    {"property": "Tags", "multi_select": {"is_empty": True}},
-                    {"property": "日本語要約", "rich_text": {"is_empty": True}},
-                    {"property": "Author", "rich_text": {"is_empty": True}},
-                    {"property": "Source", "multi_select": {"is_empty": True}},
-                ]
-            }
-        ]
-    }
-    
-    pages_to_enrich = notion.query_database(filter_conditions=enrich_filter)
+    # 1. Find pages that need enrichment by querying for entries missing tags.
+    pages_to_enrich = notion.query_pages_to_enrich()
 
     if not pages_to_enrich:
         print("✅ No pages to enrich. System finished.")
@@ -92,12 +78,12 @@ def run_enrichment():
         if needs_author:
             author = tagger.guess_author(article_data_for_ai)
             if author and author != "Unknown":
-                update_payload["Author"] = {"rich_text": [{"text": {"content": author}}]}
+                update_payload["Author"] = {"rich_text": [{"text": {"content": author}}]}}
 
         if needs_summary:
             jp_summary = summarizer.summarize(url)
             if jp_summary:
-                update_payload["日本語要約"] = {"rich_text": [{"text": {"content": jp_summary}}]}
+                update_payload["日本語要約"] = {"rich_text": [{"text": {"content": jp_summary}}]}}
 
         # 4. Update the Notion page if there's new data
         if update_payload:
