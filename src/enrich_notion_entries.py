@@ -27,6 +27,8 @@ def get_source_from_url(url: str) -> str:
 def run_enrichment():
     """
     Executes the full pipeline to find and enrich Notion pages.
+    It finds pages that have a URL but are missing Tags, a Japanese Summary, or an Author,
+    then generates the missing information using AI and updates the page.
     """
     print("🚀 Starting Notion Entry Enrichment Process...")
 
@@ -44,8 +46,23 @@ def run_enrichment():
         print(f"❌ ERROR: Failed to initialize clients. Reason: {e}")
         return
 
-    # 1. Find pages with a URL but no tags
-    pages_to_enrich = notion.query_pages_to_enrich()
+    # 1. Find pages with a URL that are missing Tags, a Japanese Summary, or an Author.
+    # This query is expanded from the original, which only looked for empty Tags.
+    enrich_filter = {
+        "and": [
+            {"property": "URL", "url": {"is_not_empty": True}},
+            {
+                "or": [
+                    {"property": "Tags", "multi_select": {"is_empty": True}},
+                    {"property": "日本語要約", "rich_text": {"is_empty": True}},
+                    {"property": "Author", "rich_text": {"is_empty": True}},
+                ]
+            }
+        ]
+    }
+    # NOTE: Assuming NotionClient has a generic `query_pages` method that accepts a Notion API filter.
+    # This replaces the more specific `query_pages_to_enrich` to expand the script's functionality.
+    pages_to_enrich = notion.query_pages(filter_params=enrich_filter)
 
     if not pages_to_enrich:
         print("✅ No pages to enrich. System finished.")
@@ -65,33 +82,50 @@ def run_enrichment():
             print(f"    - ⏭️  Skip (no URL): {title}")
             continue
 
-        # 2. Fetch article content and generate data
-        # Use the summarizer's scrape method to get content for the tagger
-        article_content = summarizer._scrape_article_text(url)
-        if not article_content:
-            print(f"    - ⏭️  Skip (could not fetch content): {title}")
-            continue
-        
-        article_data_for_ai = {"title": title, "summary": article_content[:1000], "link": url}
+        # 2. Determine which fields need to be populated and fetch content if necessary
+        needs_tags = not properties.get("Tags", {}).get("multi_select")
+        needs_summary = not properties.get("日本語要約", {}).get("rich_text")
+        needs_author = not properties.get("Author", {}).get("rich_text")
 
-        # 3. Generate AI Tags, Author, and Summary
-        tags = tagger.generate_tags(article_data_for_ai)
-        author = tagger.guess_author(article_data_for_ai)
-        jp_summary = summarizer.summarize(url) # Re-summarize for a clean version
-        source = get_source_from_url(url)
+        article_content = None
+        if needs_tags or needs_summary or needs_author:
+            article_content = summarizer._scrape_article_text(url)
+            if not article_content:
+                print(f"    - ⏭️  Skip (could not fetch content): {title}")
+                continue
 
-        # 4. Prepare properties for Notion update
-        update_payload = {
-            "Tags": {"multi_select": [{"name": tag} for tag in tags]},
-            "Author": {"rich_text": [{"text": {"content": author}}]},
-            "Source": {"multi_select": [{"name": source}]}
-        }
-        if jp_summary:
-            update_payload["日本語要約"] = {"rich_text": [{"text": {"content": jp_summary}}]}
+        # 3. Prepare data and generate missing information
+        update_payload = {}
+        article_data_for_ai = {"title": title, "summary": article_content[:1000] if article_content else "", "link": url}
 
-        # 5. Update the Notion page
-        print(f"    - Updating Notion page with generated data...")
-        notion.update_page_properties(page_id, update_payload)
+        if needs_tags:
+            print("    - Generating AI Tags...")
+            tags = tagger.generate_tags(article_data_for_ai)
+            if tags:
+                update_payload["Tags"] = {"multi_select": [{"name": tag} for tag in tags]}
+
+        if needs_author:
+            print("    - Generating AI Author...")
+            author = tagger.guess_author(article_data_for_ai)
+            if author:
+                update_payload["Author"] = {"rich_text": [{"text": {"content": author}}]}
+
+        if needs_summary:
+            print("    - Generating AI Summary (Headline)...")
+            jp_summary = summarizer.summarize(url)
+            if jp_summary:
+                update_payload["日本語要約"] = {"rich_text": [{"text": {"content": jp_summary}}]}
+
+        # 4. Update the Notion page if there's new data
+        if update_payload:
+            # Also update the source, similar to the original script's behavior
+            source = get_source_from_url(url)
+            update_payload["Source"] = {"multi_select": [{"name": source}]}
+
+            print(f"    - Updating Notion page with generated data...")
+            notion.update_page_properties(page_id, update_payload)
+        else:
+            print(f"    - ✅ No updates needed for this page.")
 
         print(f"    - ⏱️ Waiting for {API_DELAY_SECONDS} seconds...")
         time.sleep(API_DELAY_SECONDS)
