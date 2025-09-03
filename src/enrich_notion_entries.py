@@ -60,9 +60,13 @@ def run_enrichment():
             }
         ]
     }
-    # NOTE: Assuming NotionClient has a generic `query_pages` method that accepts a Notion API filter.
+    # NOTE: The NotionClient wrapper does not have a generic query method, so we call the underlying client directly.
     # This replaces the more specific `query_pages_to_enrich` to expand the script's functionality.
-    pages_to_enrich = notion.query_pages(filter_params=enrich_filter)
+    response = notion.notion.databases.query(
+        database_id=notion.database_id,
+        filter=enrich_filter
+    )
+    pages_to_enrich = response.get("results", [])
 
     if not pages_to_enrich:
         print("✅ No pages to enrich. System finished.")
@@ -108,13 +112,13 @@ def run_enrichment():
             print("    - Generating AI Author...")
             author = tagger.guess_author(article_data_for_ai)
             if author:
-                update_payload["Author"] = {"rich_text": [{"text": {"content": author}}]}
+                update_payload["Author"] = {"rich_text": [{"text": {"content": author}}]}}
 
         if needs_summary:
             print("    - Generating AI Summary (Headline)...")
             jp_summary = summarizer.summarize(url)
             if jp_summary:
-                update_payload["日本語要約"] = {"rich_text": [{"text": {"content": jp_summary}}]}
+                update_payload["日本語要約"] = {"rich_text": [{"text": {"content": jp_summary}}]}}
 
         # 4. Update the Notion page if there's new data
         if update_payload:
