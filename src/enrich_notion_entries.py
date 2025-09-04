@@ -35,38 +35,13 @@ def run_enrichment():
         print(f"❌ ERROR: Failed to initialize clients. Reason: {e}")
         return
 
-    # 1. Find pages with a URL that are missing key enrichment data.
-    enrich_filter = {
-        "and": [
-            {"property": "URL", "url": {"is_not_empty": True}},
-            {
-                "or": [
-                    {"property": "Tags", "multi_select": {"is_empty": True}},
-                    {"property": "日本語要約", "rich_text": {"is_empty": True}},
-                    {"property": "Author", "rich_text": {"is_empty": True}},
-                    {"property": "Source", "multi_select": {"is_empty": True}},
-                ]
-            }
-        ]
-    }
-    
-    try:
-        response = notion.notion.databases.query(
-            database_id=notion.database_id,
-            filter=enrich_filter
-        )
-        pages_to_enrich = response.get("results", [])
-    except Exception as e:
-        print(f"    - ❌ ERROR querying database: {e}")
-        if logger:
-            logger.log_failure(component="Enrichment_Query", article_data={"filter": enrich_filter}, error=e)
-        pages_to_enrich = []
+    # 1. Find pages that need enrichment using the dedicated method in notion_handler.
+    # This method queries for pages with empty "Tags", prints the count, and handles errors.
+    pages_to_enrich = notion.query_pages_to_enrich()
 
     if not pages_to_enrich:
         print("✅ No pages to enrich. System finished.")
         return
-        
-    print(f"ℹ️ Found {len(pages_to_enrich)} pages to enrich.")
 
     for page in pages_to_enrich:
         page_id = page["id"]
