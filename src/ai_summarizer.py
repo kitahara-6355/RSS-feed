@@ -41,7 +41,7 @@ class AISummarizer:
 
     def summarize(self, url: str) -> Optional[str]:
         """
-        Generates a catchy Japanese headline for a given article URL.
+        Generates a Japanese summary for a given article URL.
         """
         content = self._scrape_article_text(url)
         if not content:
@@ -52,9 +52,9 @@ class AISummarizer:
         except LangDetectException:
             lang = "unknown"  # Default if language detection fails
 
-        print(f"    - Generating Japanese headline for: {url[:70]}... (Detected language: {lang})")
+        print(f"    - Generating Japanese summary for: {url[:70]}... (Detected language: {lang})")
 
-        prompt_template = "記事の要点を最も的確に表す50文字程度のキャッチーな見出しを1つだけ生成してください"
+        prompt_template = "この記事の要点を3つ、箇条書き（・）で150文字以内で要約してください"
 
         prompt = f"""
         {prompt_template}
@@ -64,16 +64,16 @@ class AISummarizer:
         {content[:3000]}
         ---
 
-        見出し:
+        要約:
         """
 
         try:
             response = self.model.generate_content(prompt)
             summary = response.text.strip()
-            print(f"    - ✨ AI headline generated.")
+            print(f"    - ✨ AI summary generated.")
             return summary
         except Exception as e:
-            print(f"    - ❌ ERROR generating headline: {e}")
+            print(f"    - ❌ ERROR generating summary: {e}")
             if self.logger:
                 self.logger.log_failure("Summarizer_AI", {"link": url, "content_snippet": content[:100]}, e)
             return None
