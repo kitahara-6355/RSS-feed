@@ -101,12 +101,12 @@ def run_enrichment():
         if not properties.get("Author", {}).get("rich_text"):
             author = tagger.guess_author(article_data_for_ai)
             if author and author != "Unknown":
-                update_payload["Author"] = {"rich_text": [{"text": {"content": author}}]}
+                update_payload["Author"] = {"rich_text": [{"text": {"content": author}}] }
 
         if not properties.get("日本語要約", {}).get("rich_text"):
             jp_summary = summarizer.summarize(url)
             if jp_summary:
-                update_payload["日本語要約"] = {"rich_text": [{"text": {"content": jp_summary}}]}
+                update_payload["日本語要約"] = {"rich_text": [{"text": {"content": jp_summary}}] }
         
         # Update the Notion page if there's new data
         if update_payload:
