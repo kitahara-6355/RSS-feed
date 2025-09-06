@@ -1,0 +1,30 @@
+# .github/workflows/backfill_summaries.yml
+name: Backfill Old Summaries
+
+on:
+  workflow_dispatch: # 手動で実行できるようにする
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      
+      - name: Run backfill script
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }} # AI Summarizerが必要とするAPIキー
+        run: |
+          python src/backfill_summaries.py
