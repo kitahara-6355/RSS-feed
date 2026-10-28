@@ -173,7 +173,7 @@ test('利用者を登録すると1人1冊のブックができ、人ごとにソ
   assert.strictEqual(g.__sheets['フィード'].getLastRow(), 1);
 
   const urlK = g.registerUser({ name: '克洋', kind: '個人事業主', business: 'DX支援', preset: '克洋（旧版の興味）' });
-  const urlB = g.registerUser({ name: '美麗', preset: '美麗（仮）' });
+  const urlB = g.registerUser({ name: '利用者B', kind: '会社員', preset: '空' });
   assert.match(urlK, /copy1/);
   assert.match(urlB, /copy2/);
 
@@ -181,26 +181,25 @@ test('利用者を登録すると1人1冊のブックができ、人ごとにソ
   const b = g.__books.copy2.sheets;
   assert.strictEqual(g.__books.copy1.name, 'RSS学習ログ_克洋');
   assert.strictEqual(k['フィード'].getLastRow() - 1, 22);
-  assert.strictEqual(b['フィード'].getLastRow() - 1, 2);
-  assert.ok(b['興味キーワード'].data().some((r) => r[0] === '書道' && r[3] === '初期値（仮）'));
-  assert.ok(!b['フィード'].data().some((r) => r[1] === 'リハック'));
+  assert.strictEqual(b['フィード'].getLastRow(), 1);
+  assert.strictEqual(b['興味キーワード'].getLastRow(), 1);
   const profileB = Object.fromEntries(b['プロフィール'].data().slice(1).map((r) => [r[0], r[1]]));
-  assert.strictEqual(profileB['利用者名'], '美麗');
-  assert.strictEqual(profileB['区分'], '個人事業主');
+  assert.strictEqual(profileB['利用者名'], '利用者B');
+  assert.strictEqual(profileB['区分'], '会社員');
   // 利用者のブックに台帳は残らない。管理用の台帳には名前とURLだけ
   assert.strictEqual(k['利用者台帳'], undefined);
   const reg = g.__sheets['利用者台帳'].data();
-  assert.deepStrictEqual(reg.slice(1).map((r) => [r[0], r[2], r[3]]), [['克洋', '克洋（旧版の興味）', urlK], ['美麗', '美麗（仮）', urlB]]);
+  assert.deepStrictEqual(reg.slice(1).map((r) => [r[0], r[2], r[3]]), [['克洋', '克洋（旧版の興味）', urlK], ['利用者B', '空', urlB]]);
   // 管理用ブックの処理は自分のシートに戻っている
   assert.strictEqual(g.__sheets['フィード'].getLastRow(), 1);
-  assert.throws(() => g.registerUser({ name: '美麗' }), /登録済み/);
+  assert.throws(() => g.registerUser({ name: '利用者B' }), /登録済み/);
 });
 
 test('記事の入ったブックから登録しても、コピー先には前の人のデータが残らない', () => {
   const g = setupWith({ 'https://note.com/fladdict/rss': fx('rss2_note.xml') });
   g.runFetch();
   assert.ok(g.__sheets['記事'].getLastRow() > 1);
-  g.registerUser({ name: '美麗', preset: '空' });
+  g.registerUser({ name: '利用者B', preset: '空' });
   const b = g.__books.copy1.sheets;
   ['記事', 'フィード', '興味キーワード'].forEach((n) => assert.strictEqual(b[n].getLastRow(), 1, n));
   assert.strictEqual(b['ログ'].getLastRow(), 2); // 登録のログだけ
