@@ -23,6 +23,7 @@ gws/
     Classify.gs    キーワード分類と、要約方式の切り替え
     Main.gs        メニュー・自動実行・学習
     Seed.gs        旧版のフィード22件と興味キーワード109件
+    YouTubeImport.gs  YouTube登録チャンネル（Takeout の CSV）をフィードとして取り込む
     appsscript.json
   skills/rss-learning-log/SKILL.md   Claude Code / Gemini Skills 用の運用手順
   test/            Node で .gs を動かすテスト（node --test）
@@ -42,7 +43,7 @@ const results = RssCore.fetchFeeds([{ name: 'A', url: '...' }, { name: 'B', url:
 ## 導入手順（5分）
 
 1. Google ドライブで新しいスプレッドシートを作る（Business Standard のアカウントで）。
-2. 拡張機能 → Apps Script を開き、`apps-script/` の5つの `.gs` を同名ファイルとして貼り付ける。
+2. 拡張機能 → Apps Script を開き、`apps-script/` の6つの `.gs` を同名ファイルとして貼り付ける。
    `appsscript.json` は「プロジェクトの設定 → appsscript.json を表示」をオンにして貼り付ける。
    clasp を使う場合は `apps-script/` を `clasp push` するだけ。
 3. スプレッドシートを開き直すと「RSS学習ログ」メニューが出る。
@@ -60,6 +61,20 @@ const results = RssCore.fetchFeeds([{ name: 'A', url: '...' }, { name: 'B', url:
   10件ずつまとめて送り、1回の実行で `1回のAI処理上限` 件まで。無料枠の送信内容はGoogleの製品改善に
   使われるため、公開記事の要約以外には使わない。
 
+### YouTube登録チャンネルの取り込み
+
+YouTube はチャンネルごとに無料のRSS（`/feeds/videos.xml?channel_id=…`、新着15本）を出しているので、
+APIもキーも使わずに登録チャンネルの新着を学習ログに入れられます。
+
+1. メニュー → YouTube登録チャンネルを取り込む。
+2. Google データエクスポートの「登録チャンネル.csv」のドライブURLを貼る
+   （共有ドライブ「(PJ)未整理」に2025-08-10時点のものがある）。
+3. フィード シートに 有効=オフ で追加される。カテゴリはチャンネル名から自動で推測
+   （再生リストのジャンル分けに合わせた区分。外れたら手で直す）。見たいものだけチェックを入れる。
+
+SNS自動管理ダッシュボードで競合チャンネルを見るときも同じ方法で取り込み、用途を「SNS監視」にします。
+登録チャンネルの一覧は個人の情報なので、このリポジトリ（公開）には入れていません。
+
 ## 使い方
 
 - 記事 シートで 興味度・重要度（1〜5）と ステータス（未読／あとで読む／完了）を付ける。
@@ -73,7 +88,7 @@ cd gws/test && npm install && node --test
 ```
 
 RSS 2.0 ／ Atom（YouTube・Publickey形式）／ RSS 1.0(RDF) の解析、重複除外、しきい値、
-Sheets AI の式、Gemini のまとめ送信、学習、用途での絞り込みを確認しています。
+Sheets AI の式、Gemini のまとめ送信、学習、用途での絞り込み、YouTube登録チャンネルの取り込みを確認しています。
 
 ## 旧版から持ってこなかったもの
 

@@ -143,3 +143,20 @@ test('用途でフィードを絞れる（SNSダッシュボードからの再�
   assert.deepStrictEqual(Array.from(g.Store.feeds('SNS監視'), (f) => f.name), ['リハック']);
   assert.strictEqual(g.Store.feeds('学習').length, 2);
 });
+
+test('YouTube登録チャンネルCSVを取り込み、カテゴリを推測し、既存フィードは飛ばす', () => {
+  const g = loadGas(SRC);
+  g.setup(); // 初期フィードに ReHacQ が入っている
+  const before = g.__sheets['フィード'].data().length;
+  const n = g.importYoutubeSubscriptionsFromCsv(fx('subscriptions_sample.csv'), '学習');
+  assert.strictEqual(n, 3);
+  const rows = g.__sheets['フィード'].data().slice(before);
+  assert.deepStrictEqual(rows.map((r) => [r[0], r[1], r[3]]), [
+    [false, 'サンプルAI研究所', 'AI・DX'],
+    [false, 'サンプル, バドミントン部', '運動系01_バド'],
+    [false, 'なにかのチャンネル', '未分類']
+  ]);
+  assert.strictEqual(rows[0][2], 'https://www.youtube.com/feeds/videos.xml?channel_id=UCaaaaaaaaaaaaaaaaaaaaaa');
+  // 2回目は何も増えない
+  assert.strictEqual(g.importYoutubeSubscriptionsFromCsv(fx('subscriptions_sample.csv')), 0);
+});

@@ -8,6 +8,7 @@ function onOpen() {
     .addItem('今すぐ取得', 'runFetch')
     .addItem('AI要約を補完', 'runSummaries')
     .addItem('評価から興味を学習', 'runLearn')
+    .addItem('YouTube登録チャンネルを取り込む', 'importYoutubeSubscriptions')
     .addSeparator()
     .addItem('自動実行をオンにする', 'installTriggers')
     .addItem('自動実行をオフにする', 'removeTriggers')

@@ -3,7 +3,7 @@
  * 初期設定で、シートが空のときだけ書き込む。以後はシートを直接編集する。
  */
 var SEED_FEEDS = [
-  ["リハック", "https://www.youtube.com/feeds/videos.xml?channel_id=UCrB4n_32A4_i1yui-5s_i3g", "お気に入りとリハック"],
+  ["リハック", "https://www.youtube.com/feeds/videos.xml?channel_id=UCG_oqDSlIYEspNpd2H4zWhw", "お気に入りとリハック"],
   ["Horiemon.com", "https://horiemon.com/feed/", "お気に入りとリハック"],
   ["落合陽一", "https://note.com/ochyai/rss", "お気に入りとリハック"],
   ["中島聡", "https://satoshi.blogs.com/life/atom.xml", "お気に入りとリハック"],
