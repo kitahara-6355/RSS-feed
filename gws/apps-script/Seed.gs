@@ -1,6 +1,8 @@
 /**
- * Seed.gs — 初期データ。旧版の src/config.py の RSS_FEEDS と user_profile.json（重み3以上のタグ）から生成。
- * 初期設定で、シートが空のときだけ書き込む。以後はシートを直接編集する。
+ * Seed.gs — 利用者ごとの初期データ。登録時（または初期設定でシートが空のとき）だけ書き込む。
+ * 以後は各自のブックのシートを直接編集する。
+ *
+ * SEED_FEEDS / SEED_KEYWORDS は克洋さんの旧版（src/config.py の RSS_FEEDS と user_profile.json の重み3以上のタグ）。
  */
 var SEED_FEEDS = [
   ["リハック", "https://www.youtube.com/feeds/videos.xml?channel_id=UCG_oqDSlIYEspNpd2H4zWhw", "お気に入りとリハック"],
@@ -138,3 +140,24 @@ var SEED_KEYWORDS = [
   ["経済", 3.6],
   ["エンジニア", 3.27]
 ];
+
+// 美麗さんの初期データは仮。本人に確認して差し替える。
+var SEED_BIREI_FEEDS = [
+  ["書道家 東宮たくみ（YouTube）", "https://www.youtube.com/feeds/videos.xml?channel_id=UCrMST-VTtx4SYr8CNJHsbnQ", "書道・文化"],
+  ["中小企業庁", "https://www.chusho.meti.go.jp/rss/index.xml", "独立・経営"]
+];
+
+var SEED_BIREI_KEYWORDS = [
+  ["書道", 5, "書道・文化"], ["筆", 4, "書道・文化"], ["墨", 4, "書道・文化"], ["展覧会", 4, "書道・文化"],
+  ["個展", 4, "書道・文化"], ["和文化", 4, "書道・文化"], ["着物", 3, "書道・文化"],
+  ["独立", 4, "独立・経営"], ["起業", 4, "独立・経営"], ["個人事業主", 5, "独立・経営"], ["確定申告", 3, "独立・経営"],
+  ["補助金", 3, "独立・経営"], ["SNS", 4, "発信"], ["Instagram", 4, "発信"], ["ショート動画", 4, "発信"],
+  ["和歌山", 3, "地域"]
+];
+
+/** 登録時に選べる初期データ。名前はプロフィールの「初期データ」に残る。 */
+var SEED_PRESETS = {
+  '空': { feeds: [], keywords: [], origin: '' },
+  '克洋（旧版の興味）': { feeds: SEED_FEEDS, keywords: SEED_KEYWORDS, origin: '旧版プロファイル' },
+  '美麗（仮）': { feeds: SEED_BIREI_FEEDS, keywords: SEED_BIREI_KEYWORDS, origin: '初期値（仮）' }
+};

@@ -59,10 +59,14 @@ function makeSheet(name) {
   const sheet = {
     name,
     data: () => data,
-    getLastRow: () => data.length,
+    getLastRow: () => {
+      let n = data.length;
+      while (n > 0 && (data[n - 1] || []).every((v) => v === '' || v === undefined)) n--;
+      return n;
+    },
     getLastColumn: () => data.reduce((m, r) => Math.max(m, r.length), 0),
     setFrozenRows: () => {},
-    appendRow: (row) => data.push(row.slice()),
+    appendRow: (row) => { data[sheet.getLastRow()] = row.slice(); },
     getRange: (r, c, nr = 1, nc = 1) => {
       const range = {
         getValues: () => Array.from({ length: nr }, (_, i) =>
@@ -73,7 +77,12 @@ function makeSheet(name) {
         },
         setValue: (v) => range.setValues([[v]]),
         setFontWeight: () => range,
-        insertCheckboxes: () => range
+        insertCheckboxes: () => range,
+        clearDataValidations: () => range,
+        clearContent: () => {
+          for (let i = 0; i < nr; i++) for (let j = 0; j < nc; j++) if (data[r - 1 + i]) data[r - 1 + i][c - 1 + j] = '';
+          return range;
+        }
       };
       return range;
     }
@@ -81,8 +90,30 @@ function makeSheet(name) {
   return sheet;
 }
 
-function loadGas(dir, { fetchMap = {}, properties = {} } = {}) {
+function makeSpreadsheet(id) {
   const sheets = {};
+  return {
+    sheets,
+    getId: () => id,
+    getUrl: () => 'https://docs.google.com/spreadsheets/d/' + id + '/edit',
+    getSheetByName: (n) => sheets[n] || null,
+    insertSheet: (n) => (sheets[n] = makeSheet(n)),
+    deleteSheet: (sh) => { delete sheets[sh.name]; }
+  };
+}
+
+function cloneSpreadsheet(src, id) {
+  const copy = makeSpreadsheet(id);
+  Object.keys(src.sheets).forEach((n) => {
+    const sh = copy.insertSheet(n);
+    src.sheets[n].data().forEach((row) => sh.appendRow(row));
+  });
+  return copy;
+}
+
+function loadGas(dir, { fetchMap = {}, properties = {} } = {}) {
+  const books = { active: makeSpreadsheet('active') };
+  const sheets = books.active.sheets;
   const fetched = [];
   const response = (url) => {
     fetched.push(url);
@@ -100,9 +131,17 @@ function loadGas(dir, { fetchMap = {}, properties = {} } = {}) {
     },
     PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => properties[k] || null }) },
     SpreadsheetApp: {
-      getActiveSpreadsheet: () => ({
-        getSheetByName: (n) => sheets[n] || null,
-        insertSheet: (n) => (sheets[n] = makeSheet(n))
+      getActiveSpreadsheet: () => books.active,
+      openById: (id) => books[id]
+    },
+    DriveApp: {
+      getFileById: (id) => ({
+        makeCopy: (name) => {
+          const newId = 'copy' + Object.keys(books).length;
+          books[newId] = cloneSpreadsheet(books[id], newId);
+          books[newId].name = name;
+          return { getId: () => newId };
+        }
       })
     }
   };
@@ -111,6 +150,7 @@ function loadGas(dir, { fetchMap = {}, properties = {} } = {}) {
     vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
   });
   ctx.__sheets = sheets;
+  ctx.__books = books;
   ctx.__fetched = fetched;
   return ctx;
 }

@@ -4,6 +4,7 @@
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('RSS学習ログ')
     .addItem('初期設定（シート作成と初期データ）', 'setup')
+    .addItem('利用者を登録（1人1冊を作る）', 'registerUserDialog')
     .addSeparator()
     .addItem('今すぐ取得', 'runFetch')
     .addItem('AI要約を補完', 'runSummaries')
@@ -15,21 +16,30 @@ function onOpen() {
     .addToUi();
 }
 
-/** シートを作り、空なら旧版のフィードと興味キーワードを入れる。何度実行しても安全。 */
+/**
+ * シートを作り、空ならプロフィールの「初期データ」に応じたフィードと興味キーワードを入れる。
+ * 何度実行しても安全（既にあるデータには触らない）。
+ */
 function setup() {
   Store.ensureSchema();
+  seedPreset_(Store.profile()['初期データ'] || '空');
+  Store.log('初期設定', 'OK', '');
+}
+
+function seedPreset_(name) {
+  var preset = SEED_PRESETS[name];
+  if (!preset) throw new Error('初期データ「' + name + '」はありません');
   var feeds = Store.sheet(SHEETS.FEEDS);
-  if (feeds.getLastRow() === 1) {
-    var rows = SEED_FEEDS.map(function (f) { return [true, f[0], f[1], f[2], '', '', '']; });
+  if (feeds.getLastRow() === 1 && preset.feeds.length) {
+    var rows = preset.feeds.map(function (f) { return [true, f[0], f[1], f[2], '', '', '']; });
     feeds.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
     feeds.getRange(2, 1, rows.length, 1).insertCheckboxes();
   }
   var kw = Store.sheet(SHEETS.KEYWORDS);
-  if (kw.getLastRow() === 1) {
-    var kwRows = SEED_KEYWORDS.map(function (k) { return [k[0], k[1], k[2] || '', '旧版プロファイル']; });
+  if (kw.getLastRow() === 1 && preset.keywords.length) {
+    var kwRows = preset.keywords.map(function (k) { return [k[0], k[1], k[2] || '', preset.origin]; });
     kw.getRange(2, 1, kwRows.length, 4).setValues(kwRows);
   }
-  Store.log('初期設定', 'OK', '');
 }
 
 /** 新着を取得し、キーワード分類して記事シートに追加する。 */

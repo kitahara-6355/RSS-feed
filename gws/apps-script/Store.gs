@@ -2,6 +2,7 @@
  * Store.gs — スプレッドシートの読み書き。シート名と列はここで一元管理する。
  */
 var SHEETS = {
+  PROFILE: 'プロフィール',
   FEEDS: 'フィード',
   ARTICLES: '記事',
   KEYWORDS: '興味キーワード',
@@ -10,6 +11,7 @@ var SHEETS = {
 };
 
 var HEADERS = {
+  PROFILE: ['項目', '値', '説明'],
   FEEDS: ['有効', '名前', 'URL', 'カテゴリ', '重み', '最終取得', '状態'],
   ARTICLES: ['ID', '取得日時', '公開日時', 'ソース', 'タイトル', 'URL', '概要', 'タグ', '関連度',
     'AI要約', '興味度', '重要度', 'ステータス', '画像'],
@@ -27,9 +29,26 @@ var DEFAULT_SETTINGS = [
   ['取得時刻', 6, '毎日この時（0〜23時）に自動取得']
 ];
 
+// 1人1冊。このブックが誰のものかを書いておく。
+var DEFAULT_PROFILE = [
+  ['利用者名', '', 'このブックの持ち主（1人1冊）'],
+  ['区分', '個人事業主', '個人事業主 / 会社員 / 学生 など'],
+  ['事業・活動内容', '', '例: DX支援、書道教室'],
+  ['集めたい情報', '', '例: 生成AIの業務活用、補助金'],
+  ['初期データ', '', '登録時に入れた初期データの種類'],
+  ['登録日', '', '']
+];
+
 var Store = (function () {
+  var target_ = null;
+
   function ss_() {
-    return SpreadsheetApp.getActiveSpreadsheet();
+    return target_ || SpreadsheetApp.getActiveSpreadsheet();
+  }
+
+  /** 別のブック（登録で作った利用者のブックなど）を読み書きするときに切り替える。null で元に戻す。 */
+  function use(ss) {
+    target_ = ss;
   }
 
   function sheet(name) {
@@ -51,6 +70,42 @@ var Store = (function () {
     if (settings.getLastRow() === 1) {
       settings.getRange(2, 1, DEFAULT_SETTINGS.length, 3).setValues(DEFAULT_SETTINGS);
     }
+    var profile = sheet(SHEETS.PROFILE);
+    if (profile.getLastRow() === 1) {
+      profile.getRange(2, 1, DEFAULT_PROFILE.length, 3).setValues(DEFAULT_PROFILE);
+    }
+  }
+
+  function profile() {
+    var out = {};
+    rows_(SHEETS.PROFILE).forEach(function (r) { if (r[0]) out[r[0]] = r[1]; });
+    return out;
+  }
+
+  /** プロフィールの値を書き換える（項目がなければ追加）。 */
+  function setProfile(values) {
+    var sh = sheet(SHEETS.PROFILE);
+    var rows = rows_(SHEETS.PROFILE);
+    Object.keys(values).forEach(function (key) {
+      var i = rows.map(function (r) { return r[0]; }).indexOf(key);
+      if (i === -1) {
+        sh.getRange(sh.getLastRow() + 1, 1, 1, 2).setValues([[key, values[key]]]);
+        rows.push([key, values[key]]);
+      } else {
+        sh.getRange(i + 2, 2).setValue(values[key]);
+      }
+    });
+  }
+
+  /** 人ごとのデータ（フィード・記事・興味キーワード・ログ）を見出しだけ残して消す。設定は残す。 */
+  function clearPersonalData() {
+    [SHEETS.FEEDS, SHEETS.ARTICLES, SHEETS.KEYWORDS, SHEETS.LOG].forEach(function (name) {
+      var sh = sheet(name);
+      if (sh && sh.getLastRow() > 1) {
+        // チェックボックスが残ると空行も「値あり」になるので、入力規則も消す。
+        sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).clearDataValidations().clearContent();
+      }
+    });
   }
 
   /** 見出し名 → 列番号(0始まり) */
@@ -199,7 +254,11 @@ var Store = (function () {
   }
 
   return {
+    use: use,
     ensureSchema: ensureSchema,
+    profile: profile,
+    setProfile: setProfile,
+    clearPersonalData: clearPersonalData,
     sheet: sheet,
     settings: settings,
     feeds: feeds,

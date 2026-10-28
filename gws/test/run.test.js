@@ -49,12 +49,17 @@ test('フィードでないものは例外', () => {
 
 function setupWith(fetchMap, properties) {
   const g = loadGas(SRC, { fetchMap, properties });
-  g.SEED_FEEDS = [
-    ['深津貴之', 'https://note.com/fladdict/rss', 'AI'],
-    ['リハック', 'https://yt/rehacq', 'お気に入り'],
-    ['壊れたフィード', 'https://broken/feed', 'テスト']
-  ];
-  g.SEED_KEYWORDS = [['生成AI', 5.5], ['プロンプト', 4, 'AI活用'], ['セキュリティ', 5]];
+  g.SEED_PRESETS['テスト'] = {
+    feeds: [
+      ['深津貴之', 'https://note.com/fladdict/rss', 'AI'],
+      ['リハック', 'https://yt/rehacq', 'お気に入り'],
+      ['壊れたフィード', 'https://broken/feed', 'テスト']
+    ],
+    keywords: [['生成AI', 5.5], ['プロンプト', 4, 'AI活用'], ['セキュリティ', 5]],
+    origin: '旧版プロファイル'
+  };
+  g.Store.ensureSchema();
+  g.Store.setProfile({ '初期データ': 'テスト' });
   g.setup();
   return g;
 }
@@ -145,6 +150,8 @@ test('有効のチェックを外したフィードは取得しない', () => {
 
 test('YouTube登録チャンネルCSVを取り込み、カテゴリを推測し、既存フィードは飛ばす', () => {
   const g = loadGas(SRC);
+  g.Store.ensureSchema();
+  g.Store.setProfile({ '初期データ': '克洋（旧版の興味）' });
   g.setup(); // 初期フィードに ReHacQ が入っている
   const before = g.__sheets['フィード'].data().length;
   const n = g.importYoutubeSubscriptionsFromCsv(fx('subscriptions_sample.csv'));
@@ -158,4 +165,43 @@ test('YouTube登録チャンネルCSVを取り込み、カテゴリを推測し�
   assert.strictEqual(rows[0][2], 'https://www.youtube.com/feeds/videos.xml?channel_id=UCaaaaaaaaaaaaaaaaaaaaaa');
   // 2回目は何も増えない
   assert.strictEqual(g.importYoutubeSubscriptionsFromCsv(fx('subscriptions_sample.csv')), 0);
+});
+
+test('利用者を登録すると1人1冊のブックができ、人ごとにソースが分かれる', () => {
+  const g = loadGas(SRC);
+  g.setup(); // 管理用ブック（初期データは空）
+  assert.strictEqual(g.__sheets['フィード'].getLastRow(), 1);
+
+  const urlK = g.registerUser({ name: '克洋', kind: '個人事業主', business: 'DX支援', preset: '克洋（旧版の興味）' });
+  const urlB = g.registerUser({ name: '美麗', preset: '美麗（仮）' });
+  assert.match(urlK, /copy1/);
+  assert.match(urlB, /copy2/);
+
+  const k = g.__books.copy1.sheets;
+  const b = g.__books.copy2.sheets;
+  assert.strictEqual(g.__books.copy1.name, 'RSS学習ログ_克洋');
+  assert.strictEqual(k['フィード'].getLastRow() - 1, 22);
+  assert.strictEqual(b['フィード'].getLastRow() - 1, 2);
+  assert.ok(b['興味キーワード'].data().some((r) => r[0] === '書道' && r[3] === '初期値（仮）'));
+  assert.ok(!b['フィード'].data().some((r) => r[1] === 'リハック'));
+  const profileB = Object.fromEntries(b['プロフィール'].data().slice(1).map((r) => [r[0], r[1]]));
+  assert.strictEqual(profileB['利用者名'], '美麗');
+  assert.strictEqual(profileB['区分'], '個人事業主');
+  // 利用者のブックに台帳は残らない。管理用の台帳には名前とURLだけ
+  assert.strictEqual(k['利用者台帳'], undefined);
+  const reg = g.__sheets['利用者台帳'].data();
+  assert.deepStrictEqual(reg.slice(1).map((r) => [r[0], r[2], r[3]]), [['克洋', '克洋（旧版の興味）', urlK], ['美麗', '美麗（仮）', urlB]]);
+  // 管理用ブックの処理は自分のシートに戻っている
+  assert.strictEqual(g.__sheets['フィード'].getLastRow(), 1);
+  assert.throws(() => g.registerUser({ name: '美麗' }), /登録済み/);
+});
+
+test('記事の入ったブックから登録しても、コピー先には前の人のデータが残らない', () => {
+  const g = setupWith({ 'https://note.com/fladdict/rss': fx('rss2_note.xml') });
+  g.runFetch();
+  assert.ok(g.__sheets['記事'].getLastRow() > 1);
+  g.registerUser({ name: '美麗', preset: '空' });
+  const b = g.__books.copy1.sheets;
+  ['記事', 'フィード', '興味キーワード'].forEach((n) => assert.strictEqual(b[n].getLastRow(), 1, n));
+  assert.strictEqual(b['ログ'].getLastRow(), 2); // 登録のログだけ
 });
