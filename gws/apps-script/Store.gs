@@ -10,7 +10,7 @@ var SHEETS = {
 };
 
 var HEADERS = {
-  FEEDS: ['有効', '名前', 'URL', 'カテゴリ', '用途', '重み', '最終取得', '状態'],
+  FEEDS: ['有効', '名前', 'URL', 'カテゴリ', '重み', '最終取得', '状態'],
   ARTICLES: ['ID', '取得日時', '公開日時', 'ソース', 'タイトル', 'URL', '概要', 'タグ', '関連度',
     'AI要約', '興味度', '重要度', 'ステータス', '画像'],
   KEYWORDS: ['キーワード', '重み', '分類', '由来'],
@@ -73,8 +73,8 @@ var Store = (function () {
     return out;
   }
 
-  /** 有効なフィード。usage を渡すと 用途 で絞る（例: 'SNS監視'）。 */
-  function feeds(usage) {
+  /** 有効なフィード。 */
+  function feeds() {
     var c = index_(SHEETS.FEEDS);
     return rows_(SHEETS.FEEDS).map(function (r, i) {
       return {
@@ -83,11 +83,10 @@ var Store = (function () {
         name: r[c['名前']],
         url: r[c['URL']],
         category: r[c['カテゴリ']],
-        usage: r[c['用途']],
         weight: Number(r[c['重み']]) || 0
       };
     }).filter(function (f) {
-      return f.enabled && f.url && (!usage || f.usage === usage);
+      return f.enabled && f.url;
     });
   }
 

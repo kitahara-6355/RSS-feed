@@ -1,13 +1,12 @@
 /**
  * RssCore.gs — RSS / Atom / RDF を取得して共通形式に揃える部品。
  *
- * シートにも AI にも依存しない。SNS自動管理ダッシュボードなど別のプロジェクトでも、
- * このファイルだけをコピー（または Apps Script ライブラリとして追加）すれば使える。
+ * シートにも AI にも依存しない（取得の部品だけを差し替え・テストしやすくするため）。
  *
  *   const items = RssCore.fetchFeed('https://note.com/fladdict/rss', { source: '深津貴之' });
  *   // => [{ id, source, title, link, published, author, summary, image }]
  *
- * 外部サービスは UrlFetchApp だけ（Workspace の定額枠内。Business Standard は 1日10万回）。
+ * 外部サービスは UrlFetchApp だけ（Apps Script の無料の上限内で動く）。
  */
 var RssCore = (function () {
   var ATOM_NS = 'http://www.w3.org/2005/Atom';

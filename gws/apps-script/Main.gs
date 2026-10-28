@@ -20,7 +20,7 @@ function setup() {
   Store.ensureSchema();
   var feeds = Store.sheet(SHEETS.FEEDS);
   if (feeds.getLastRow() === 1) {
-    var rows = SEED_FEEDS.map(function (f) { return [true, f[0], f[1], f[2], '学習', '', '', '']; });
+    var rows = SEED_FEEDS.map(function (f) { return [true, f[0], f[1], f[2], '', '', '']; });
     feeds.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
     feeds.getRange(2, 1, rows.length, 1).insertCheckboxes();
   }
@@ -43,7 +43,7 @@ function runFetch() {
   var skipped = 0;
   var errors = [];
 
-  RssCore.fetchFeeds(Store.feeds('学習'), { limit: limit }).forEach(function (result) {
+  RssCore.fetchFeeds(Store.feeds(), { limit: limit }).forEach(function (result) {
     var feed = result.feed;
     if (result.error) {
       errors.push(feed.name + ': ' + result.error);
@@ -112,7 +112,7 @@ function average_(totals) {
   return out;
 }
 
-/** 毎日の取得と、毎週月曜の学習を登録する。Apps Script のトリガーは定額枠内（1日6時間まで）。 */
+/** 毎日の取得と、毎週月曜の学習を登録する。Apps Script のトリガーは無料の上限内（1日の合計実行時間に上限あり）。 */
 function installTriggers() {
   removeTriggers();
   var hour = Number(Store.settings()['取得時刻']);

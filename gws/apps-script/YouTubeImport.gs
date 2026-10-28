@@ -4,7 +4,6 @@
  *
  * YouTube はチャンネルごとに無料のRSS（新着15本）を出しているので、API もキーも要らない。
  * 取り込んだ行は 有効=オフ で入る。見たいチャンネルだけチェックを入れる。
- * SNS自動管理ダッシュボードで競合チャンネルを見る場合は、用途 を「SNS監視」にする。
  */
 
 // チャンネル名からカテゴリを推測する規則。上から順に最初に当たったものを使う。
@@ -54,7 +53,7 @@ var RssYouTube = (function () {
 })();
 
 /** フィード シートに追加する。既にあるURLは飛ばす。戻り値は追加件数。 */
-function importYoutubeSubscriptionsFromCsv(csvText, usage) {
+function importYoutubeSubscriptionsFromCsv(csvText) {
   Store.ensureSchema();
   var sh = Store.sheet(SHEETS.FEEDS);
   var existing = {};
@@ -65,7 +64,7 @@ function importYoutubeSubscriptionsFromCsv(csvText, usage) {
     return !existing[RssYouTube.feedUrl(c.channelId)];
   }).map(function (c) {
     return [false, c.title, RssYouTube.feedUrl(c.channelId), RssYouTube.guessCategory(c.title),
-      usage || '学習', '', '', 'YouTube登録チャンネルから取り込み'];
+      '', '', 'YouTube登録チャンネルから取り込み'];
   });
   if (rows.length) {
     var start = sh.getLastRow() + 1;
@@ -86,6 +85,6 @@ function importYoutubeSubscriptions() {
   var m = /[-\w]{25,}/.exec(res.getResponseText());
   if (!m) { ui.alert('ファイルIDが見つかりませんでした'); return; }
   var csv = DriveApp.getFileById(m[0]).getBlob().getDataAsString('UTF-8');
-  var n = importYoutubeSubscriptionsFromCsv(csv, '学習');
+  var n = importYoutubeSubscriptionsFromCsv(csv);
   ui.alert(n + '件のチャンネルを フィード シートに追加しました（有効はオフ）。見たいものにチェックを入れてください。');
 }

@@ -72,8 +72,8 @@ test('取得 → 分類 → 記事シートに追加、2回目は重複しない
   assert.strictEqual(rows[1][4], '週末の散歩');
 
   const feeds = g.__sheets['フィード'].data();
-  assert.match(feeds[3][7], /^エラー: HTTP 404/);
-  assert.match(feeds[1][7], /新着2件/);
+  assert.match(feeds[3][6], /^エラー: HTTP 404/);
+  assert.match(feeds[1][6], /新着2件/);
 
   g.runFetch();
   assert.strictEqual(g.__sheets['記事'].data().length, 4);
@@ -134,21 +134,20 @@ test('評価から学習し、手入力の重みは上書きしない', () => {
   const kw = g.__sheets['興味キーワード'].data();
   assert.strictEqual(kw.find((r) => r[0] === '生成AI')[1], 5.5); // 旧版プロファイル由来は変えない
   assert.deepStrictEqual(kw.find((r) => r[0] === 'AI活用'), ['AI活用', 5.6, '', '学習']);
-  assert.strictEqual(g.__sheets['フィード'].data()[1][5], 5.6);
+  assert.strictEqual(g.__sheets['フィード'].data()[1][4], 5.6);
 });
 
-test('用途でフィードを絞れる（SNSダッシュボードからの再利用）', () => {
+test('有効のチェックを外したフィードは取得しない', () => {
   const g = setupWith({});
-  g.__sheets['フィード'].data()[2][4] = 'SNS監視';
-  assert.deepStrictEqual(Array.from(g.Store.feeds('SNS監視'), (f) => f.name), ['リハック']);
-  assert.strictEqual(g.Store.feeds('学習').length, 2);
+  g.__sheets['フィード'].data()[2][0] = false;
+  assert.deepStrictEqual(Array.from(g.Store.feeds(), (f) => f.name), ['深津貴之', '壊れたフィード']);
 });
 
 test('YouTube登録チャンネルCSVを取り込み、カテゴリを推測し、既存フィードは飛ばす', () => {
   const g = loadGas(SRC);
   g.setup(); // 初期フィードに ReHacQ が入っている
   const before = g.__sheets['フィード'].data().length;
-  const n = g.importYoutubeSubscriptionsFromCsv(fx('subscriptions_sample.csv'), '学習');
+  const n = g.importYoutubeSubscriptionsFromCsv(fx('subscriptions_sample.csv'));
   assert.strictEqual(n, 3);
   const rows = g.__sheets['フィード'].data().slice(before);
   assert.deepStrictEqual(rows.map((r) => [r[0], r[1], r[3]]), [
