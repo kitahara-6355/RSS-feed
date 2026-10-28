@@ -13,7 +13,7 @@ test('RSS 2.0 を解析し、HTMLを除去してIDを付ける', () => {
   const items = g.RssCore.parseFeed(fx('rss2_note.xml'), { source: '深津貴之' });
   assert.strictEqual(items.length, 2);
   assert.strictEqual(items[0].title, '生成AIとプロンプトエンジニアリングの現在地');
-  assert.strictEqual(items[0].summary, 'ChatGPT以降の プロンプト 設計について&考える。');
+  assert.strictEqual(items[0].summary, 'ChatGPT以降のプロンプト設計について&考える。');
   assert.strictEqual(items[0].author, 'fladdict');
   assert.strictEqual(items[0].image, 'https://assets.st-note.com/a.png');
   assert.strictEqual(items[0].source, '深津貴之');

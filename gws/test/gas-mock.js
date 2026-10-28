@@ -9,9 +9,14 @@ function wrapEl(node) {
   const kids = (name, ns) => Array.from(node.childNodes).filter((c) =>
     c.nodeType === 1 && c.localName === name && (ns ? c.namespaceURI === ns.uri : !c.namespaceURI));
   return {
+    getNamespace: () => ({ getPrefix: () => node.prefix || '', getURI: () => node.namespaceURI || '' }),
+    getAttributes: () => Array.from(node.attributes || []).filter((a) => !/^xmlns/.test(a.name))
+      .map((a) => ({ getName: () => a.localName, getValue: () => a.value })),
     getName: () => node.localName,
     getChild: (name, ns) => { const k = kids(name, ns)[0]; return k ? wrapEl(k) : null; },
-    getChildren: (name, ns) => kids(name, ns).map(wrapEl),
+    getChildren: (name, ns) => (name === undefined
+      ? Array.from(node.childNodes).filter((c) => c.nodeType === 1)
+      : kids(name, ns)).map(wrapEl),
     getText: () => node.textContent || '',
     getAttribute: (name) => node.hasAttribute(name) ? { getValue: () => node.getAttribute(name) } : null
   };
