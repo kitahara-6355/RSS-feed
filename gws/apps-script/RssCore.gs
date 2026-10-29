@@ -166,7 +166,7 @@ var RssCore = (function () {
       .replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'")
       .replace(/&#(\d+);/g, function (_, n) { return String.fromCharCode(Number(n)); })
       .replace(/&amp;/g, '&')
-      .replace(/[ \t ]+/g, ' ')
+      .replace(/[ \t\u00A0]+/g, ' ')
       .replace(/ *\n */g, '\n')
       .replace(/\n{3,}/g, '\n\n')
       .trim();
@@ -177,7 +177,7 @@ var RssCore = (function () {
    */
   function sanitizeXml(text) {
     return String(text || '')
-      .replace(/^﻿/, '')
+      .replace(/^\uFEFF/, '')
       .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
       .replace(/&nbsp;/g, '&#160;')
       .replace(/&(?!(amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/g, '&amp;');
