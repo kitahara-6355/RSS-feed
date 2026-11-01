@@ -283,7 +283,9 @@ var DEFAULT_SETTINGS = [
   ['取得時刻', 6, '毎日この時（0〜23時）に自動取得'],
   ['朝のメール', 'オン', 'オン / オフ。毎朝の取得のあと、関連度の高い未読を最大10件メールで送る'],
   ['有料記事を外す', 'オン', 'オン / オフ。note などの有料記事を保存しない'],
-  ['エラーで止める回数', 3, '同じフィードがこの回数続けて失敗したら、有効のチェックを自動で外す']
+  ['エラーで止める回数', 3, '同じフィードがこの回数続けて失敗したら、有効のチェックを自動で外す'],
+  ['取得しないサイト', 'note.com', 'URLにこの文字を含むフィードは止める。複数は「,」で区切る（2026-11-01 北原さん: noteは取得しない）'],
+  ['おすすめフィードの版', 0, '自動で入れた「おすすめフィード」の版。手で変えない']
 ];
 
 // 1人1冊。このブックが誰のものかを書いておく。
@@ -393,6 +395,13 @@ var Store = (function () {
     var out = {};
     rows_(SHEETS.SETTINGS).forEach(function (r) { if (r[0]) out[r[0]] = r[1]; });
     return out;
+  }
+
+  function setSetting(key, value) {
+    var sh = sheet(SHEETS.SETTINGS);
+    var keys = sh.getRange(2, 1, Math.max(sh.getLastRow() - 1, 1), 1).getValues().map(function (r) { return r[0]; });
+    var i = keys.indexOf(key);
+    if (i === -1) sh.appendRow([key, value, '']); else sh.getRange(i + 2, 2).setValue(value);
   }
 
   /** 有効なフィード。 */
@@ -556,6 +565,7 @@ var Store = (function () {
     feeds: feeds,
     markFeed: markFeed,
     setFeedIntro: setFeedIntro,
+    setSetting: setSetting,
     disableFeed: disableFeed,
     feedIntros: feedIntros,
     keywords: keywords,
@@ -743,6 +753,7 @@ function runFetch() {
   var errors = [];
   var stopped = [];
 
+  applyFeedPolicy_(settings);
   RssCore.fetchFeeds(Store.feeds(), { limit: limit }).forEach(function (result) {
     var feed = result.feed;
     if (result.error) {
@@ -779,6 +790,35 @@ function runFetch() {
     (errors.length ? ' / ' + errors.join(' | ') : ''));
 
   if (settings['要約方式'] && settings['要約方式'] !== 'なし') runSummaries();
+}
+
+/**
+ * フィードの方針を当てる: 取得しないサイトのフィードを止め、まだ入れていない「おすすめフィード」を足す。
+ * おすすめは版ごとに1回だけ足す（あとで人が止めたものを、勝手に戻さない）。
+ */
+function applyFeedPolicy_(settings) {
+  var blocked = String(settings['取得しないサイト'] || '').split(',').map(function (x) { return x.trim(); }).filter(String);
+  var stopped = [];
+  Store.feeds().forEach(function (f) {
+    if (blocked.some(function (b) { return String(f.url).indexOf(b) !== -1; })) { Store.disableFeed(f); stopped.push(f.name); }
+  });
+  var done = Number(settings['おすすめフィードの版']) || 0;
+  var added = [];
+  if (done < RECOMMENDED_FEEDS_VERSION) {
+    var sh = Store.sheet(SHEETS.FEEDS);
+    var urls = sh.getLastRow() > 1 ? sh.getRange(2, 3, sh.getLastRow() - 1, 1).getValues().map(function (r) { return String(r[0]); }) : [];
+    RECOMMENDED_FEEDS.forEach(function (f) {
+      if (f[4] <= done || urls.indexOf(f[1]) !== -1) return;
+      sh.appendRow([true, f[0], f[1], f[2], '', '', '', f[3]]);
+      sh.getRange(sh.getLastRow(), 1).insertCheckboxes();
+      added.push(f[0]);
+    });
+    Store.setSetting('おすすめフィードの版', RECOMMENDED_FEEDS_VERSION);
+  }
+  if (stopped.length || added.length) {
+    Store.log('フィードの方針', 'OK', (stopped.length ? '止めた: ' + stopped.join('、') : '') +
+      (added.length ? (stopped.length ? ' / ' : '') + '足した: ' + added.join('、') : ''));
+  }
 }
 
 function runSummaries() {
@@ -1105,6 +1145,23 @@ var SEED_INTROS = {
   'https://natalie.mu/comic/feed': 'コミックナタリー（ナターシャ）。漫画の新刊・イベントのニュース',
   'https://realsound.jp/book/feed': 'Real Sound ブック。本・漫画の批評とインタビュー'
 };
+
+// おすすめフィード（信頼できる発信元だけ。PCで取得できることを確かめたもの）。[名前, URL, カテゴリ, 紹介, 版]
+var RECOMMENDED_FEEDS_VERSION = 1;
+var RECOMMENDED_FEEDS = [
+  ['ITmedia AI+', 'https://rss.itmedia.co.jp/rss/2.0/aiplus.xml', 'AI・テクノロジー', 'ITmedia（アイティメディア）の生成AI専門ニュース', 1],
+  ['ITmedia ビジネスオンライン', 'https://rss.itmedia.co.jp/rss/2.0/business.xml', '経済・政治', 'ITmediaのビジネス・企業ニュース', 1],
+  ['ITmedia エンタープライズ', 'https://rss.itmedia.co.jp/rss/2.0/enterprise.xml', 'AI・テクノロジー', 'ITmediaの企業IT・DX・業務システムのニュース', 1],
+  ['＠IT', 'https://rss.itmedia.co.jp/rss/2.0/ait.xml', 'AI・テクノロジー', 'ITmediaのエンジニア向け技術解説', 1],
+  ['INTERNET Watch', 'https://internet.watch.impress.co.jp/data/rss/1.0/iw/feed.rdf', 'AI・テクノロジー', 'インプレスのネット・セキュリティのニュース', 1],
+  ['日経クロステック', 'https://xtech.nikkei.com/rss/index.rdf', 'AI・テクノロジー', '日経BPの技術・ITの専門ニュース', 1],
+  ['Google Workspace Updates', 'https://workspaceupdates.googleblog.com/feeds/posts/default', '業務効率化・ライフハック', 'Google公式。Workspaceの新機能・変更のお知らせ（英語）', 1],
+  ['Google Japan Blog', 'https://blog.google/intl/ja-jp/rss/', 'AI・テクノロジー', 'Google日本法人の公式ブログ', 1],
+  ['OpenAI News', 'https://openai.com/news/rss.xml', 'AI・テクノロジー', 'OpenAI公式のお知らせ（英語）', 1],
+  ['経済産業省 ニュースリリース', 'https://www.meti.go.jp/ml_index_release_atom.xml', '経済・政治', '経済産業省の公式発表。補助金・制度・公募', 1],
+  ['東洋経済オンライン', 'https://toyokeizai.net/list/feed/rss', '経済・政治', '東洋経済新報社の経済・企業・社会の記事', 1],
+  ['Business Insider Japan', 'https://www.businessinsider.jp/feed/index.xml', '経済・政治', 'ビジネス・テクノロジー・キャリアのニュース', 1]
+];
 
 var SEED_FEEDS = [
   ["リハック", "https://www.youtube.com/feeds/videos.xml?channel_id=UCG_oqDSlIYEspNpd2H4zWhw", "お気に入りとリハック"],
