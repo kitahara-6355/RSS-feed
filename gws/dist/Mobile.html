@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+:root{
+  --bg:#f6f5f2; --card:#ffffff; --ink:#1d1d1f; --sub:#6b6b70; --line:#e4e2dd;
+  --accent:#1f6feb; --accent-soft:#e6efff; --done:#2e7d32; --later:#b26a00;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#141416; --card:#1f1f22; --ink:#f1f1f3; --sub:#a0a0a8; --line:#2f2f34;
+    --accent:#6ea8ff; --accent-soft:#1d2b45; --done:#7ccf82; --later:#f0b35a; }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;line-height:1.55;
+  padding-bottom:max(24px,env(safe-area-inset-bottom))}
+header{position:sticky;top:0;z-index:2;background:var(--bg);padding:12px 16px 0;
+  padding-top:max(12px,env(safe-area-inset-top));border-bottom:1px solid var(--line)}
+h1{font-size:18px;margin:0 0 8px}
+h1 small{font-weight:400;color:var(--sub);font-size:13px;margin-left:6px}
+nav{display:flex;gap:4px}
+nav button{flex:1;border:0;background:none;color:var(--sub);font:inherit;font-size:14px;padding:10px 4px;
+  border-bottom:3px solid transparent;cursor:pointer}
+nav button.on{color:var(--ink);font-weight:700;border-bottom-color:var(--accent)}
+main{padding:12px 16px;display:grid;gap:12px;max-width:720px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+.meta{font-size:12px;color:var(--sub);display:flex;gap:8px;flex-wrap:wrap}
+.score{color:var(--accent);font-weight:700}
+.card a.title{display:block;color:var(--ink);text-decoration:none;font-weight:700;font-size:16px;margin:4px 0 6px}
+.sum{font-size:14px;color:var(--sub);margin:0 0 8px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.about{font-size:12px;color:var(--sub);background:var(--accent-soft);border-radius:8px;padding:6px 8px;margin:6px 0 2px}
+.words{font-size:13px;margin-bottom:10px}
+.words b{color:var(--accent);font-weight:700}
+.rate{display:flex;align-items:center;gap:6px;margin:6px 0}
+.rate span{font-size:12px;color:var(--sub);width:3.2em}
+.rate button{width:38px;height:36px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--ink);font:inherit;cursor:pointer}
+.rate button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.acts{display:flex;gap:8px;margin-top:10px}
+.acts button{flex:1;height:40px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--ink);font:inherit;font-size:14px;cursor:pointer}
+.acts button.later.on{border-color:var(--later);color:var(--later);font-weight:700}
+.acts button.done.on{border-color:var(--done);color:var(--done);font-weight:700}
+.empty,.msg{text-align:center;color:var(--sub);padding:40px 0;font-size:14px}
+.toast{position:fixed;left:50%;bottom:max(20px,env(safe-area-inset-bottom));transform:translateX(-50%);
+  background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:999px;font-size:13px;opacity:0;transition:opacity .2s}
+.toast.show{opacity:.92}
+</style>
+</head>
+<body>
+<header>
+  <h1>RSS学習ログ<small id="who"></small></h1>
+  <nav>
+    <button data-v="new" class="on">新着 <span id="cNew"></span></button>
+    <button data-v="later">あとで <span id="cLater"></span></button>
+    <button data-v="rated">評価済み</button>
+  </nav>
+</header>
+<main id="list"><div class="msg">読み込み中…</div></main>
+<div class="toast" id="toast"></div>
+<script>
+var USER = <?= JSON.stringify(user) ?>;
+var view = 'new';
+var items = [];
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function toast(t){ var e=$('toast'); e.textContent=t; e.classList.add('show'); setTimeout(function(){ e.classList.remove('show'); }, 1400); }
+function day(ms){ if(!ms) return ''; var d=new Date(ms); return (d.getMonth()+1)+'/'+d.getDate(); }
+
+function load(){
+  $('list').innerHTML = '<div class="msg">読み込み中…</div>';
+  google.script.run.withSuccessHandler(function(res){
+    items = res.items;
+    $('who').textContent = res.name ? res.name + ' さん' : '';
+    $('cNew').textContent = res.counts.new ? '(' + res.counts.new + ')' : '';
+    $('cLater').textContent = res.counts.later ? '(' + res.counts.later + ')' : '';
+    render();
+  }).withFailureHandler(function(e){
+    $('list').innerHTML = '<div class="msg">読み込めませんでした: ' + esc(e.message) + '</div>';
+  }).apiArticles(USER, view);
+}
+
+function rateRow(a, field, label){
+  var cur = field === '興味度' ? a.interest : a.importance;
+  var h = '<div class="rate"><span>' + label + '</span>';
+  for (var i = 1; i <= 5; i++) h += '<button data-f="' + field + '" data-v="' + i + '" class="' + (cur === i ? 'on' : '') + '">' + i + '</button>';
+  return h + '</div>';
+}
+
+function render(){
+  if (!items.length) {
+    $('list').innerHTML = '<div class="empty">' + (view === 'new' ? '未読の記事はありません' : view === 'later' ? '「あとで読む」はありません' : 'まだ評価した記事はありません') + '</div>';
+    return;
+  }
+  $('list').innerHTML = items.map(function(a, i){
+    return '<article class="card" data-i="' + i + '">' +
+      '<div class="meta"><span>' + esc(a.source) + '</span><span>' + day(a.published) + '</span>' + (a.score ? '<span class="score">関連度 ' + a.score + '</span>' : '') + '</div>' +
+      (a.about || a.author ? '<div class="about">' + esc(a.author && a.author !== a.source ? a.author + '／' : '') + esc(a.about || '発信元の紹介はまだありません') + '</div>' : '') +
+      '<a class="title" href="' + esc(a.link) + '" target="_blank" rel="noopener">' + esc(a.title) + '</a>' +
+      (a.summary ? '<p class="sum">' + esc(a.summary) + '</p>' : '') +
+      '<div class="words"><b>当たった興味ワード</b> ' + esc(a.words || a.tags || 'なし') + '</div>' +
+      rateRow(a, '興味度', '興味') + rateRow(a, '重要度', '重要') +
+      '<div class="acts"><button class="later ' + (a.status === 'あとで読む' ? 'on' : '') + '" data-s="あとで読む">あとで読む</button>' +
+      '<button class="done ' + (a.status === '完了' ? 'on' : '') + '" data-s="完了">読んだ</button></div>' +
+      '</article>';
+  }).join('');
+}
+
+function save(a, field, value, undo){
+  google.script.run.withSuccessHandler(function(){ toast('保存しました'); })
+    .withFailureHandler(function(e){ undo(); render(); toast(e.message); })
+    .apiRate(USER, a.row, a.id, field, value);
+}
+
+$('list').addEventListener('click', function(ev){
+  var b = ev.target.closest('button'); if (!b) return;
+  var card = b.closest('.card'); var a = items[Number(card.dataset.i)];
+  if (b.dataset.f) {
+    var key = b.dataset.f === '興味度' ? 'interest' : 'importance';
+    var before = a[key], v = Number(b.dataset.v);
+    a[key] = before === v ? 0 : v;  // 同じ数字をもう一度押すと取り消し
+    render();
+    save(a, b.dataset.f, a[key] || '', function(){ a[key] = before; });
+  } else if (b.dataset.s) {
+    var prev = a.status, next = prev === b.dataset.s ? '未読' : b.dataset.s;
+    a.status = next; render();
+    save(a, 'ステータス', next, function(){ a.status = prev; });
+  }
+});
+
+document.querySelectorAll('nav button').forEach(function(b){
+  b.addEventListener('click', function(){
+    document.querySelectorAll('nav button').forEach(function(x){ x.classList.toggle('on', x === b); });
+    view = b.dataset.v; load();
+  });
+});
+load();
+</script>
+</body>
+</html>
