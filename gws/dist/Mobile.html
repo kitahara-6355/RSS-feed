@@ -65,18 +65,32 @@ main{padding:12px 16px;display:grid;gap:12px;max-width:720px;margin:0 auto}
 .kind{font-size:11px;border-radius:6px;padding:0 6px;line-height:20px;background:var(--line);color:var(--sub)}
 .kind.stale{background:#c62828;color:#fff} .kind.keep{background:var(--accent-soft);color:var(--accent)}
 .slot.isStale .card{opacity:.6}
+.top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+#addBtn{border:1px solid var(--accent);color:var(--accent);background:none;border-radius:999px;font:inherit;font-size:13px;font-weight:700;padding:4px 12px;cursor:pointer;white-space:nowrap}
+#addForm{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;margin:4px 0 8px}
+#addForm p{font-size:12px;color:var(--sub);margin:0 0 8px}
+#addForm .row{display:flex;gap:8px}
+#addUrl{flex:1;min-width:0;height:40px;border:1px solid var(--line);border-radius:10px;padding:0 10px;font:inherit;font-size:16px;background:var(--bg);color:var(--ink)}
+#addGo{height:40px;border:0;border-radius:10px;background:var(--accent);color:#fff;font:inherit;font-weight:700;padding:0 16px}
+#addGo:disabled{opacity:.5}
+.pin{font-size:11px;border-radius:6px;padding:0 6px;line-height:20px;background:var(--accent);color:#fff}
 .empty,.msg{text-align:center;color:var(--sub);padding:40px 0;font-size:14px}
 .toast{position:fixed;left:50%;bottom:max(20px,env(safe-area-inset-bottom));transform:translateX(-50%) translateY(120%);
   display:flex;align-items:center;gap:14px;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;
-  font-size:14px;opacity:0;pointer-events:none;transition:opacity .15s, transform .15s;z-index:5;max-width:calc(100% - 32px);white-space:nowrap}
+  font-size:14px;opacity:0;pointer-events:none;transition:opacity .15s, transform .15s;z-index:5;max-width:calc(100% - 32px);width:max-content;border-radius:16px}
 .toast.show{opacity:.95;transform:translateX(-50%) translateY(0);pointer-events:auto}
+#toastText{overflow:hidden;text-overflow:ellipsis}
 .toast button{border:0;background:none;color:var(--accent);font:inherit;font-weight:700;padding:4px 0;cursor:pointer}
 @media (prefers-color-scheme: dark){ .toast button{color:#1f6feb} }
 </style>
 </head>
 <body>
 <header>
-  <h1>RSS学習ログ<small id="who"></small></h1>
+  <div class="top"><h1>RSS学習ログ<small id="who"></small></h1><button id="addBtn" type="button">＋ URLを貼る</button></div>
+  <form id="addForm" hidden>
+    <p>気になった記事やYouTubeのURLを貼ると、「興味5・重要5」で残し、その人と媒体を注目に加えて興味の重みを更新します。</p>
+    <div class="row"><input id="addUrl" type="url" inputmode="url" placeholder="https://..." autocomplete="off"><button id="addGo" type="submit">追加</button></div>
+  </form>
   <p class="hint" id="hint"></p>
   <nav>
     <button data-v="new" class="on">新着 <span id="cNew"></span></button>
@@ -124,7 +138,7 @@ function toast(text, withUndo){
   $('undo').style.display = withUndo ? '' : 'none';
   $('toast').classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(function(){ $('toast').classList.remove('show'); lastMove = null; }, withUndo ? 4000 : 2200);
+  toastTimer = setTimeout(function(){ $('toast').classList.remove('show'); lastMove = null; }, withUndo ? 4000 : 3800);
 }
 
 function showCounts(){
@@ -158,6 +172,7 @@ function cardHtml(a){
     '<article class="card">' +
       '<div class="meta"><span>' + esc(a.source) + '</span>' + repBadge(a.src, '媒体') + day(a) + (a.score ? '<span class="score">関連度 ' + a.score + '</span>' : '') + '</div>' +
       (a.about || a.author ? '<div class="about">' + (a.author && a.author !== a.source ? esc(a.author) + ' ' + repBadge(a.who, '人') + '／' : '') + esc(a.about || '発信元の紹介はまだありません') + '</div>' : '') +
+      (a.pinned ? '<span class="pin">自分で追加</span>' : '') +
       '<a class="title" href="' + esc(a.link) + '" target="_blank" rel="noopener">' + esc(a.title) + '</a>' +
       (a.summary ? '<p class="sum">' + esc(a.summary) + '</p>' : '') +
       '<div class="words"><b>当たった興味ワード</b> ' + esc(a.words || a.tags || 'なし') + '</div>' +
@@ -297,6 +312,30 @@ function undo(){
   send(a, m.prevStatus, interest, function(){ load(); });
 }
 $('undo').addEventListener('click', undo);
+
+// URLを貼る
+$('addBtn').addEventListener('click', function(){
+  var f = $('addForm'); f.hidden = !f.hidden;
+  if (!f.hidden) {
+    $('addUrl').focus();
+    // クリップボードにURLがあれば入れておく（許可されないときは何もしない）
+    try { navigator.clipboard.readText().then(function(t){ if (/^https?:\/\//.test(t.trim()) && !$('addUrl').value) $('addUrl').value = t.trim(); }).catch(function(){}); } catch (e) {}
+  }
+});
+$('addForm').addEventListener('submit', function(ev){
+  ev.preventDefault();
+  var url = $('addUrl').value.trim(); if (!url) return;
+  $('addGo').disabled = true; $('addGo').textContent = '読み込み中…';
+  google.script.run.withSuccessHandler(function(r){
+    $('addGo').disabled = false; $('addGo').textContent = '追加';
+    $('addUrl').value = ''; $('addForm').hidden = true;
+    toast((r.existed ? '印を付け直しました: ' : '追加しました: ') + r.title.slice(0, 14) + (r.added.length ? '／注目に ' + r.added.join('・') : ''), false);
+    if (view === 'later' || view === 'rated') load(); else { counts.later++; showCounts(); }
+  }).withFailureHandler(function(e){
+    $('addGo').disabled = false; $('addGo').textContent = '追加';
+    toast('追加できませんでした: ' + e.message, false);
+  }).apiAddUrl(USER, url);
+});
 
 function removeCard(id, dir){
   var slot = slotOf(id); if (!slot) return;

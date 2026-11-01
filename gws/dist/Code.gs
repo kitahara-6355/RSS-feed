@@ -268,7 +268,7 @@ var HEADERS = {
   PROFILE: ['項目', '値', '説明'],
   FEEDS: ['有効', '名前', 'URL', 'カテゴリ', '重み', '最終取得', '状態', '紹介'],
   ARTICLES: ['ID', '取得日時', '公開日時', 'ソース', 'タイトル', 'URL', '概要', 'タグ', '関連度',
-    'AI要約', '興味度', '重要度', 'ステータス', '画像', '当たった興味ワード', '書き手', '評価日時'],
+    'AI要約', '興味度', '重要度', 'ステータス', '画像', '当たった興味ワード', '書き手', '評価日時', '追加元'],
   KEYWORDS: ['キーワード', '重み', '分類', '由来'],
   SETTINGS: ['項目', '値', '説明'],
   LOG: ['日時', '処理', '結果', '詳細']
@@ -595,11 +595,14 @@ var Classify = (function () {
   /** キーワードでタグと関連度を付ける。feedWeight はフィードごとの重み（学習結果）。 */
   function byKeywords(article, keywords, feedWeight) {
     var text = (article.title + ' ' + article.summary).toLowerCase();
+    // 「注目の人」「注目の媒体」は書き手・発信元の名前にも当てる（スマホでURLを貼ったときに入る）
+    var who = (text + ' ' + (article.author || '') + ' ' + (article.source || '')).toLowerCase();
     var tags = [];
     var hits = [];
     var score = feedWeight || 0;
     keywords.forEach(function (k) {
-      if (k.keyword && text.indexOf(k.keyword.toLowerCase()) !== -1) {
+      var target = /^注目の/.test(k.tag) ? who : text;
+      if (k.keyword && target.indexOf(k.keyword.toLowerCase()) !== -1) {
         if (tags.indexOf(k.tag) === -1) tags.push(k.tag);
         if (k.weight > score) score = k.weight;
         hits.push(k);
@@ -841,7 +844,7 @@ function runLearn() {
     var bonus = (a.status === 'あとで読む' || a.status === '完了') ? 1 : 0;
     var score = a.interest * 0.6 + a.importance * 0.4 + bonus;
     if (score <= 0) return;
-    a.tags.forEach(function (t) { add_(tagTotals, t, score); });
+    a.tags.forEach(function (t) { if (!/^注目の/.test(t)) add_(tagTotals, t, score); });  // 注目の人・媒体は手で足した重みのまま
     add_(sourceTotals, a.source, score);
   });
   Store.saveLearned(average_(tagTotals), average_(sourceTotals));
@@ -1368,6 +1371,7 @@ function apiArticles(user, view) {
       status: String(r[c['ステータス']] || '未読'), image: String(r[c['画像']] || ''),
       words: String(r[c['当たった興味ワード']] || ''), author: String(r[c['書き手']] || ''),
       about: intros[String(r[c['ソース']] || '')] || '',
+      pinned: String(r[c['追加元']] || '') === '手で追加',
       kind: freshKind_(String(r[c['タイトル']] || ''), String(r[c['ソース']] || '')),
       judged: r[c['評価日時']] instanceof Date ? r[c['評価日時']].getTime() : (r[c['取得日時']] instanceof Date ? r[c['取得日時']].getTime() : 0)
     };
@@ -1489,6 +1493,171 @@ function apiTriage(user, row, id, status, interest) {
   } finally {
     lock.releaseLock();
   }
+  return true;
+}
+
+// ===== 手で貼ったURL =====
+/**
+ * スマホで貼った記事・YouTube のURLを取り込む。「自分の目でホットだと思った」印として:
+ *  1. 記事を 興味5・重要5・あとで読む で記事シートに入れる（すでにあれば印だけ付け直す）
+ *  2. 書き手と発信元を 興味キーワード に「注目の人」「注目の媒体」（由来 手で追加・重み5）として足す
+ *     → 以後その人・媒体の記事は関連度が上がる
+ *  3. 発信元の RSS（YouTube はチャンネルのフィード）が見つかればフィードに足す
+ *  4. その場で学習（runLearn）を回して、タグとフィードの重みを更新する
+ * 外部の取得は UrlFetchApp（無料枠）と YouTube の oEmbed（キー不要）だけ。
+ */
+var PIN_WEIGHT = 5;
+function apiAddUrl(user, url) {
+  url = String(url || '').trim();
+  var m = /https?:\/\/[^\s]+/.exec(url);
+  if (!m) throw new Error('URLが読み取れませんでした');
+  url = m[0];
+  var book = mobileBook_(user);
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    Store.use(book);
+    Store.ensureSchema();
+    var info = pageInfo_(url);
+    // 登録済みフィードと同じサイトなら、そのフィードの名前にそろえる（バッジと学習が同じ媒体として数えるように）
+    var same = info.isYouTube ? [] : Store.feeds().filter(function (f) { return domain_(f.url) === domain_(url); });
+    if (same.length === 1) info.source = same[0].name;
+    if (same.length) info.feedUrl = '';
+    var res = pinArticle_(info);
+    var added = [];
+    if (info.author && info.author !== info.source && addFocusKeyword_(info.author, '注目の人')) added.push('人「' + info.author + '」');
+    if (info.source && addFocusKeyword_(info.source, '注目の媒体')) added.push('媒体「' + info.source + '」');
+    var feed = info.feedUrl ? addFeedIfNew_(info.source || info.title, info.feedUrl, info.isYouTube ? 'YouTube' : '手で追加', info.about) : false;
+    if (feed) added.push('フィード');
+    runLearn();
+    Store.log('URLを追加', 'OK', info.title + ' / ' + (added.join('・') || '注目は登録済み'));
+    return { title: info.title, source: info.source, author: info.author, existed: res.existed, added: added };
+  } finally {
+    Store.use(null);
+    lock.releaseLock();
+  }
+}
+
+function pageInfo_(url) {
+  var info = { url: url, title: '', source: '', author: '', summary: '', about: '', published: '', feedUrl: '', image: '', isYouTube: false };
+  var yt = /(youtube\.com\/(watch|shorts|live)|youtu\.be\/)/.test(url);
+  var html = '';
+  try {
+    var res = UrlFetchApp.fetch(url, { muteHttpExceptions: true, followRedirects: true, headers: { 'User-Agent': 'Mozilla/5.0', 'Accept-Language': 'ja,en;q=0.8' } });
+    if (res.getResponseCode() < 400) html = res.getContentText().slice(0, 600000);
+  } catch (e) { html = ''; }
+  var meta = function (name) {
+    var r = new RegExp('<meta[^>]+(?:property|name|itemprop)=["\']' + name + '["\'][^>]*>', 'i').exec(html);
+    if (!r) return '';
+    var c = /content=["\']([^"\']*)["\']/i.exec(r[0]);
+    return c ? decode_(c[1]) : '';
+  };
+  if (yt) {
+    info.isYouTube = true;
+    try {
+      var o = JSON.parse(UrlFetchApp.fetch('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent(url), { muteHttpExceptions: true }).getContentText());
+      info.title = o.title || ''; info.source = o.author_name || ''; info.image = o.thumbnail_url || '';
+    } catch (e) { /* oEmbed が使えないときはページから読む */ }
+    var ch = /"(?:channelId|externalChannelId)":"(UC[\w-]{22})"/.exec(html) || /channel\/(UC[\w-]{22})/.exec(html);
+    if (ch) info.feedUrl = RssYouTube.feedUrl(ch[1]);
+    info.summary = meta('og:description') || meta('description');
+    var up = /"(?:uploadDate|publishDate)":"([^"]+)"/.exec(html) || [null, meta('uploadDate') || meta('datePublished')];
+    info.published = up[1] || '';
+    info.about = 'YouTube チャンネル';
+  } else {
+    info.title = meta('og:title') || meta('twitter:title') || decode_(((/<title[^>]*>([\s\S]*?)<\/title>/i.exec(html) || [])[1] || '').trim());
+    info.source = meta('og:site_name') || meta('application-name');
+    info.author = meta('author') || meta('article:author') || meta('twitter:creator') ||
+      decode_(((/"author"\s*:\s*(?:\[\s*)?\{[^}]*?"name"\s*:\s*"([^"]+)"/.exec(html)) || [])[1] || '');
+    if (/^https?:/.test(info.author)) info.author = '';
+    info.summary = meta('og:description') || meta('description');
+    info.published = meta('article:published_time') || ((/"datePublished"\s*:\s*"([^"]+)"/.exec(html)) || [])[1] || '';
+    info.image = meta('og:image');
+    var alt = /<link[^>]+type=["\']application\/(?:rss|atom)\+xml["\'][^>]*>/i.exec(html);
+    var href = alt && /href=["\']([^"\']+)["\']/i.exec(alt[0]);
+    if (href) info.feedUrl = absUrl_(decode_(href[1]), url);
+    var host = (/^https?:\/\/([^\/]+)/.exec(url) || [])[1] || '';
+    if (!info.source) info.source = host.replace(/^www\./, '');
+    info.about = meta('og:site_name') ? '' : host;
+  }
+  if (!info.title) info.title = url;
+  info.summary = RssCore.toPlainText(info.summary).slice(0, 300);
+  return info;
+}
+
+/** 比べる用のドメイン（www.itmedia.co.jp と rss.itmedia.co.jp → itmedia.co.jp）。 */
+function domain_(u) {
+  var host = ((/^https?:\/\/([^\/:]+)/.exec(String(u)) || [])[1] || '').toLowerCase().split('.');
+  var n = /^(co|or|ne|go|ac|ed|gr|lg)$/.test(host[host.length - 2] || '') ? 3 : 2;
+  return host.slice(-n).join('.');
+}
+
+function decode_(s) {
+  return String(s || '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;|&#x27;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+}
+function absUrl_(href, base) {
+  if (/^https?:/.test(href)) return href;
+  var origin = (/^(https?:\/\/[^\/]+)/.exec(base) || [])[1] || '';
+  return href.charAt(0) === '/' ? origin + href : origin + '/' + href;
+}
+
+/** 記事シートに入れる（すでにあれば 興味5・重要5 の印を付け直す）。 */
+function pinArticle_(info) {
+  var sh = Store.sheet(SHEETS.ARTICLES);
+  var c = articleCols_();
+  var id = RssCore.makeId(info.url);
+  var now = new Date();
+  if (sh.getLastRow() >= 2) {
+    var ids = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
+    for (var i = 0; i < ids.length; i++) {
+      if (String(ids[i][0]) !== id) continue;
+      var row = i + 2;
+      sh.getRange(row, c['興味度'] + 1, 1, 3).setValues([[PIN_WEIGHT, PIN_WEIGHT, 'あとで読む']]);
+      sh.getRange(row, c['評価日時'] + 1, 1, 2).setValues([[now, '手で追加']]);
+      return { existed: true };
+    }
+  }
+  var k = Classify.byKeywords({ title: info.title, summary: info.summary, author: info.author, source: info.source }, Store.keywords(), 0);
+  var pub = info.published ? new Date(info.published) : '';
+  if (pub && isNaN(pub.getTime())) pub = '';
+  var values = HEADERS.ARTICLES.map(function (h) {
+    return {
+      'ID': id, '取得日時': now, '公開日時': pub, 'ソース': info.source, 'タイトル': info.title, 'URL': info.url,
+      '概要': info.summary, 'タグ': k.tags.join(', '), '関連度': Math.max(k.score, PIN_WEIGHT), 'AI要約': '',
+      '興味度': PIN_WEIGHT, '重要度': PIN_WEIGHT, 'ステータス': 'あとで読む', '画像': info.image,
+      '当たった興味ワード': k.words.join('・'), '書き手': info.author, '評価日時': now, '追加元': '手で追加'
+    }[h];
+  }).map(function (v) { return v === undefined ? '' : v; });
+  sh.getRange(sh.getLastRow() + 1, 1, 1, values.length).setValues([values]);
+  return { existed: false };
+}
+
+/** 興味キーワードに注目の人・媒体を足す。すでにあれば重みを PIN_WEIGHT 以上にする。足したら true。 */
+function addFocusKeyword_(name, tag) {
+  name = String(name).trim();
+  if (!name || name.length < 2) return false;
+  var sh = Store.sheet(SHEETS.KEYWORDS);
+  var hit = -1, weight = 0;
+  if (sh.getLastRow() >= 2) {
+    var rows = sh.getRange(2, 1, sh.getLastRow() - 1, 2).getValues();
+    for (var i = 0; i < rows.length; i++) if (String(rows[i][0]) === name) { hit = i + 2; weight = Number(rows[i][1]) || 0; break; }
+  }
+  if (hit === -1) { sh.appendRow([name, PIN_WEIGHT, tag, '手で追加']); return true; }
+  if (weight < PIN_WEIGHT) sh.getRange(hit, 2).setValue(PIN_WEIGHT);
+  return false;
+}
+
+/** フィードに無ければ足す（取得しないサイトは足さない）。足したら true。 */
+function addFeedIfNew_(name, url, category, intro) {
+  var blocked = String(Store.settings()['取得しないサイト'] || '').split(',').map(function (x) { return x.trim(); }).filter(String);
+  if (blocked.some(function (b) { return url.indexOf(b) !== -1; })) return false;
+  var sh = Store.sheet(SHEETS.FEEDS);
+  var c = HEADERS.FEEDS;
+  if (sh.getLastRow() >= 2) {
+    var urls = sh.getRange(2, c.indexOf('URL') + 1, sh.getLastRow() - 1, 1).getValues();
+    for (var i = 0; i < urls.length; i++) if (String(urls[i][0]).trim() === url) return false;
+  }
+  sh.appendRow([true, name, url, category, PIN_WEIGHT, '', '', intro || '']);
   return true;
 }
 
