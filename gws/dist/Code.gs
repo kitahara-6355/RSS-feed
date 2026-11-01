@@ -268,7 +268,7 @@ var HEADERS = {
   PROFILE: ['項目', '値', '説明'],
   FEEDS: ['有効', '名前', 'URL', 'カテゴリ', '重み', '最終取得', '状態', '紹介'],
   ARTICLES: ['ID', '取得日時', '公開日時', 'ソース', 'タイトル', 'URL', '概要', 'タグ', '関連度',
-    'AI要約', '興味度', '重要度', 'ステータス', '画像', '当たった興味ワード', '書き手'],
+    'AI要約', '興味度', '重要度', 'ステータス', '画像', '当たった興味ワード', '書き手', '評価日時'],
   KEYWORDS: ['キーワード', '重み', '分類', '由来'],
   SETTINGS: ['項目', '値', '説明'],
   LOG: ['日時', '処理', '結果', '詳細']
@@ -1318,6 +1318,8 @@ var SEED_PRESETS = {
  * 設定シートに「朝のメール」= オフ と書けば送らない。
  */
 var MOBILE_LIMIT = 40;
+/** 記事のステータス。興味なし はスマホの左スワイプ（興味度1も入り、月曜の学習で重みが下がる）。 */
+var STATUSES = ['未読', 'あとで読む', '完了', '興味なし'];
 
 function doGet(e) {
   var t = HtmlService.createTemplateFromFile('Mobile');
@@ -1365,9 +1367,12 @@ function apiArticles(user, view) {
       importance: r[c['重要度']] === '' ? 0 : Number(r[c['重要度']]) || 0,
       status: String(r[c['ステータス']] || '未読'), image: String(r[c['画像']] || ''),
       words: String(r[c['当たった興味ワード']] || ''), author: String(r[c['書き手']] || ''),
-      about: intros[String(r[c['ソース']] || '')] || ''
+      about: intros[String(r[c['ソース']] || '')] || '',
+      kind: freshKind_(String(r[c['タイトル']] || ''), String(r[c['ソース']] || '')),
+      judged: r[c['評価日時']] instanceof Date ? r[c['評価日時']].getTime() : (r[c['取得日時']] instanceof Date ? r[c['取得日時']].getTime() : 0)
     };
   });
+  var rep = reputation_(all);
   var isNew = function (a) { return a.status === '未読' || a.status === ''; };
   var items;
   if (view === 'later') {
@@ -1375,19 +1380,79 @@ function apiArticles(user, view) {
   } else if (view === 'rated') {
     items = all.filter(function (a) { return a.interest || a.importance; }).reverse();
   } else {
-    items = all.filter(isNew).sort(function (a, b) { return (b.score - a.score) || (b.published - a.published); });
+    all.forEach(function (a) { a.stale = isStale_(a.kind, a.published); });
+    items = all.filter(isNew).sort(function (a, b) { return (a.stale - b.stale) || (b.score - a.score) || (b.published - a.published); });
   }
+  items = items.slice(0, MOBILE_LIMIT);
+  items.forEach(function (a) {
+    a.src = rep['媒体:' + a.source] || null;
+    a.who = a.author && a.author !== a.source ? (rep['人:' + a.author] || null) : null;
+  });
   return {
     name: name,
-    items: items.slice(0, MOBILE_LIMIT),
+    items: items,
     counts: { new: all.filter(isNew).length, later: all.filter(function (a) { return a.status === 'あとで読む'; }).length }
   };
+}
+
+/**
+ * 記事の仕分けから、媒体（ソース）と書き手ごとのプラス・マイナスを自動で数える。
+ * プラス: あとで読む・読んだ・興味度4以上。マイナス: 興味なし・興味度2以下。
+ * 最近（REP_RECENT_DAYS 日）とそれより前の「プラスの割合」を比べて、上向き・下向きを出す。
+ */
+var REP_RECENT_DAYS = 14;
+
+/**
+ * 古くなると価値が落ちる記事（ニュース型）か、古くても役立つ記事（保存型）かを見出しで見分ける。
+ * ニュース型で NEWS_STALE_DAYS 日より古いものは、新着の下へ回し、朝のメールにも入れない。
+ */
+var NEWS_STALE_DAYS = 14;
+var NEWS_WORDS = /発表|開始|提供|リリース|発売|速報|公開|アップデート|更新|値上げ|値下げ|終了|廃止|決定|launch|release|announc|update|now available|introduc/i;
+var KEEP_WORDS = /とは|入門|解説|方法|やり方|使い方|コツ|考え方|まとめ|ガイド|事例|インタビュー|教訓|理由|なぜ|how to|guide|tips|lessons|why/i;
+var NEWS_SOURCES = /Workspace Updates|ニュースリリース|OpenAI News|INTERNET Watch/;
+function freshKind_(title, source) {
+  if (KEEP_WORDS.test(title)) return 'keep';
+  if (NEWS_WORDS.test(title) || NEWS_SOURCES.test(source)) return 'news';
+  return 'keep';
+}
+function isStale_(kind, publishedMs) {
+  return kind === 'news' && publishedMs > 0 && Date.now() - publishedMs > NEWS_STALE_DAYS * 24 * 3600 * 1000;
+}
+function judge_(a) {
+  if (a.status === '興味なし' || (a.interest && a.interest <= 2)) return -1;
+  if (a.status === 'あとで読む' || a.status === '完了' || a.interest >= 4) return 1;
+  return 0;
+}
+function reputation_(all) {
+  var since = Date.now() - REP_RECENT_DAYS * 24 * 3600 * 1000;
+  var t = {};
+  var bump = function (key, sign, recent) {
+    var o = t[key] || (t[key] = { plus: 0, minus: 0, rp: 0, rm: 0 });
+    if (sign > 0) { o.plus++; if (recent) o.rp++; } else { o.minus++; if (recent) o.rm++; }
+  };
+  all.forEach(function (a) {
+    var sign = judge_(a);
+    if (!sign) return;
+    var recent = a.judged >= since;
+    if (a.source) bump('媒体:' + a.source, sign, recent);
+    if (a.author && a.author !== a.source) bump('人:' + a.author, sign, recent);
+  });
+  Object.keys(t).forEach(function (k) {
+    var o = t[k];
+    var op = o.plus - o.rp, om = o.minus - o.rm;
+    var rate = function (p, m) { return p + m ? (p - m) / (p + m) : null; };
+    var now = rate(o.rp, o.rm), before = rate(op, om), all_ = rate(o.plus, o.minus);
+    o.score = Math.round(all_ * 100) / 100;
+    o.trend = now === null ? 'flat' : before === null ? (now > 0 ? 'up' : now < 0 ? 'down' : 'flat')
+      : (now - before > 0.2 ? 'up' : now - before < -0.2 ? 'down' : 'flat');
+  });
+  return t;
 }
 
 /** 評価を書き込む。行がずれていないか ID で確かめる。field: 興味度 / 重要度 / ステータス */
 function apiRate(user, row, id, field, value) {
   if (['興味度', '重要度', 'ステータス'].indexOf(field) === -1) throw new Error('書き換えられない列です');
-  if (field === 'ステータス' && ['未読', 'あとで読む', '完了'].indexOf(value) === -1) throw new Error('ステータスの値が違います');
+  if (field === 'ステータス' && STATUSES.indexOf(value) === -1) throw new Error('ステータスの値が違います');
   if (field !== 'ステータス' && !(value === '' || (Number(value) >= 1 && Number(value) <= 5))) throw new Error('1〜5で付けてください');
   var book = mobileBook_(user);
   var sh = book.getSheetByName(SHEETS.ARTICLES);
@@ -1397,6 +1462,30 @@ function apiRate(user, row, id, field, value) {
   try {
     if (String(sh.getRange(row, c['ID'] + 1).getValue()) !== String(id)) throw new Error('記事の位置が変わりました。開き直してください');
     sh.getRange(row, c[field] + 1).setValue(field === 'ステータス' ? value : (value === '' ? '' : Number(value)));
+    sh.getRange(row, c['評価日時'] + 1).setValue(new Date());
+  } finally {
+    lock.releaseLock();
+  }
+  return true;
+}
+
+/**
+ * スワイプの仕分け。ステータスと（興味なしのときは）興味度を1回の呼び出しで書く。
+ * interest: 数字なら興味度に入れる、'' なら空にする、null なら触らない。
+ */
+function apiTriage(user, row, id, status, interest) {
+  if (STATUSES.indexOf(status) === -1) throw new Error('ステータスの値が違います');
+  if (interest !== null && interest !== undefined && !(interest === '' || (Number(interest) >= 1 && Number(interest) <= 5))) throw new Error('1〜5で付けてください');
+  var book = mobileBook_(user);
+  var sh = book.getSheetByName(SHEETS.ARTICLES);
+  var c = articleCols_();
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    if (String(sh.getRange(row, c['ID'] + 1).getValue()) !== String(id)) throw new Error('記事の位置が変わりました。開き直してください');
+    sh.getRange(row, c['ステータス'] + 1).setValue(status);
+    if (interest !== null && interest !== undefined) sh.getRange(row, c['興味度'] + 1).setValue(interest === '' ? '' : Number(interest));
+    sh.getRange(row, c['評価日時'] + 1).setValue(new Date());
   } finally {
     lock.releaseLock();
   }
@@ -1414,6 +1503,8 @@ function sendMorningMail_() {
   var top = sh.getRange(2, 1, sh.getLastRow() - 1, HEADERS.ARTICLES.length).getValues()
     .filter(function (r) {
       var got = r[c['取得日時']];
+      var pub = r[c['公開日時']] instanceof Date ? r[c['公開日時']].getTime() : 0;
+      if (isStale_(freshKind_(String(r[c['タイトル']] || ''), String(r[c['ソース']] || '')), pub)) return false;
       return (r[c['ステータス']] === '未読' || r[c['ステータス']] === '') && got instanceof Date && got.getTime() >= since;
     })
     .sort(function (a, b) { return (Number(b[c['関連度']]) || 0) - (Number(a[c['関連度']]) || 0); })
