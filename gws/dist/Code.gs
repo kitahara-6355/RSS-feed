@@ -261,6 +261,7 @@ var SHEETS = {
   ARTICLES: '記事',
   KEYWORDS: '興味キーワード',
   AUTHORS: '著者',
+  VIEWS: '視聴履歴',
   SETTINGS: '設定',
   LOG: 'ログ'
 };
@@ -273,6 +274,7 @@ var HEADERS = {
   KEYWORDS: ['キーワード', '重み', '分類', '由来'],
   AUTHORS: ['名前', '別名', '見方（手書き）', 'フラグ 記事', 'フラグ まとめ経由', 'フラグ YouTube', 'フラグ X', '提案を保留',
     '見方（自動）', '記事', 'まとめ経由', 'YouTube', 'X', '刺さるテーマ', '刺さらないテーマ', '最終判定', '更新'],
+  VIEWS: ['チャンネル', 'チャンネルID', '年月', '本数', '最後に見た日', '最近の動画'],
   SETTINGS: ['項目', '値', '説明'],
   LOG: ['日時', '処理', '結果', '詳細']
 };
@@ -287,6 +289,7 @@ var DEFAULT_SETTINGS = [
   ['朝のメール', 'オン', 'オン / オフ。毎朝の取得のあと、関連度の高い未読を最大10件メールで送る'],
   ['有料記事を外す', 'オン', 'オン / オフ。note などの有料記事を保存しない'],
   ['エラーで止める回数', 3, '同じフィードがこの回数続けて失敗したら、有効のチェックを自動で外す'],
+  ['読んだ視聴履歴', '', '取り込み済みのテイクアウトのファイルID（自動で入る。空にすると次の朝に読み直す）'],
   ['取得しないサイト', 'note.com', 'URLにこの文字を含むフィードは止める。複数は「,」で区切る（2026-11-01 北原さん: noteは取得しない）'],
   ['おすすめフィードの版', 0, '自動で入れた「おすすめフィード」の版。手で変えない']
 ];
@@ -890,9 +893,14 @@ function removeTriggers() {
  * こうすると「利用者を登録」のあとに本人がブックを開いて自動実行を入れ直さなくてよい。
  * 開けないブック（持ち主が別の人で共有されていない等）はログに残して飛ばす。
  */
-function runFetchAll() { forEachBook_(function () { runFetch(); backfillWords_(); sendMorningMail_(); }, '取得'); }
+function runFetchAll() { forEachBook_(function () { runFetch(); backfillWords_(); importViewsSafe_(); sendMorningMail_(); }, '取得'); }
+function importViewsSafe_() {
+  try { importWatchHistory_(false); rebuildAuthors_(); } catch (e) { Store.log('視聴履歴', 'エラー', e.message); }
+}
+/** メニューや手動で読み直すとき。 */
+function runImportWatchHistory() { forEachBook_(function () { Store.ensureSchema(); importWatchHistory_(true); rebuildAuthors_(); }, '視聴履歴'); }
 /** メニューの「今すぐ取得」。メールは送らない。管理用ブックで押すと台帳のブックをまとめて取得する。 */
-function runFetchNow() { forEachBook_(function () { runFetch(); backfillWords_(); }, '今すぐ取得'); }
+function runFetchNow() { forEachBook_(function () { runFetch(); backfillWords_(); importViewsSafe_(); }, '今すぐ取得'); }
 
 /** 当たった興味ワードが空の記事（列を足す前に取った記事）に、今の興味キーワードで付け直す。 */
 function backfillWords_() {
@@ -1363,7 +1371,7 @@ function apiArticles(user, view) {
   try { Store.use(book); name = Store.profile()['利用者名'] || ''; intros = Store.feedIntros(); } finally { Store.use(null); }
   var all = readArticles_(book);
   if (!all.length) return { name: name, items: [], counts: { new: 0, later: 0 } };
-  var people = authorStats_(all, readAuthorSheet_(book));
+  var people = authorStats_(all, readAuthorSheet_(book), readViews_(book));
   all.forEach(function (a) { a.about = intros[a.source] || ''; });
   var rep = reputation_(all);
   var isNew = function (a) { return a.status === '未読' || a.status === ''; };
@@ -1576,9 +1584,16 @@ function readArticles_(book) {
 }
 
 /** 人×経路の集計。all は readArticles_ の結果（ch・person を付ける）。 */
-function authorStats_(all, sheet) {
+function authorStats_(all, sheet, views) {
   var now = Date.now(), recent = now - SUGGEST.recentDays * 864e5;
   var people = {};
+  views = views || {};
+  Object.keys(views).forEach(function (raw) {
+    var name = sheet.alias[normName_(raw)] || raw, v = views[raw];
+    var p = people[name] || (people[name] = { name: name, ch: {}, evidence: [], pos: {}, neg: {}, pinned: false, last: 0 });
+    p.views = v;
+    if (v.last > p.last) p.last = v.last;
+  });
   all.forEach(function (a) {
     a.ch = channelOf_(a.link);
     a.person = personOf_(a, a.ch, sheet.alias);
@@ -1642,11 +1657,16 @@ function autoView_(p) {
     parts.push(ch + (j < 3 ? 'の' : 'は') + word + '（' + j + '本中' + s.plus + '本が刺さった' + tr + '）');
     if (s.rn >= SUGGEST.throttleMin && s.rp / s.rn < SUGGEST.throttleRate) parts.push(ch + 'は量のわりに当たりが少ない（2週間で' + s.rn + '本）');
   });
-  if (!judgedAll && !parts.length) return 'まだ判定がありません';
-  var t = parts.join('。') + '。';
+  if (!judgedAll && !parts.length && !(p.views && p.views.total)) return 'まだ判定がありません';
+  var t = parts.length ? parts.join('。') + '。' : '';
   if (p.likes.length) t += '刺さるテーマ: ' + p.likes.join('・') + '。';
   if (p.dislikes.length) t += '刺さらないテーマ: ' + p.dislikes.join('・') + '。';
   if (p.pinned) t += '自分でURLを貼ったことがある。';
+  if (p.views && p.views.total) {
+    var ms = Object.keys(p.views.months).sort();
+    t += 'YouTubeで' + p.views.total + '本見ている（最近3か月で' + p.views.recent + '本、' + ms[0].replace('-', '年').replace(/^(\d+)年0?/, '$1年') + '月から）。';
+    if (!p.views.subscribed && p.views.recent >= VIEWS_SUGGEST_MIN) t += 'まだフィードに入っていない。';
+  }
   return t;
 }
 
@@ -1675,6 +1695,14 @@ function suggestion_(people) {
       void last; void today;
     });
   });
+  if (!best) {
+    // よく見ているのにフィードに無いチャンネル
+    var cand = Object.keys(people).map(function (k) { return people[k]; })
+      .filter(function (p) { return p.views && p.views.id && !p.views.subscribed && p.views.recent >= VIEWS_SUGGEST_MIN && !(p.snooze['YouTube'] && p.snooze['YouTube'] > cutoff); })
+      .sort(function (a, b) { return b.views.recent - a.views.recent; })[0];
+    if (cand) best = { type: 'フィードに足す', person: cand.name, ch: 'YouTube', channelId: cand.views.id,
+      reason: cand.name + 'のYouTubeを最近3か月で' + cand.views.recent + '本見ています。フィードに足して新着に出しますか？' };
+  }
   return best;
 }
 function otherChannels_(p, ch) {
@@ -1705,11 +1733,11 @@ function rebuildAuthors_() {
   if (!sh) return;
   var book = sh.getParent();
   var sheet = readAuthorSheet_(book);
-  var people = authorStats_(readArticles_(book), sheet);
+  var people = authorStats_(readArticles_(book), sheet, readViews_(book));
   var H = HEADERS.AUTHORS;
   var names = Object.keys(people).filter(function (k) {
     var p = people[k];
-    var judged = CHANNELS.some(function (ch) { return p.ch[ch] && (p.ch[ch].plus + p.ch[ch].minus); });
+    var judged = CHANNELS.some(function (ch) { return p.ch[ch] && (p.ch[ch].plus + p.ch[ch].minus); }) || (p.views && p.views.recent >= 3);
     var many = CHANNELS.some(function (ch) { return p.ch[ch] && p.ch[ch].n >= 5; });
     return judged || many || p.pinned || sheet.people[k];
   });
@@ -1749,7 +1777,7 @@ function rebuildAuthors_() {
 /** 画面の 著者 タブ。最近ハマっている順。 */
 function apiAuthors(user) {
   var book = mobileBook_(user);
-  var people = authorStats_(readArticles_(book), readAuthorSheet_(book));
+  var people = authorStats_(readArticles_(book), readAuthorSheet_(book), readViews_(book));
   var months = [];
   for (var i = 5; i >= 0; i--) {
     var d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i);
@@ -1766,9 +1794,14 @@ function apiAuthors(user) {
         months: months.map(function (m) { return s.months[m] || { p: 0, m: 0, n: 0 }; }) };
     });
     if ((p.flags && CHANNELS.some(function (c) { return p.flags[c] === '注目'; })) || p.pinned) heat += 3;
+    var views = null;
+    if (p.views && p.views.total) {
+      heat += Math.min(p.views.recent, 30) * 0.3;
+      views = { total: p.views.total, recent: p.views.recent, subscribed: p.views.subscribed, months: months.map(function (m) { return p.views.months[m] || 0; }) };
+    }
     return { name: k, view: p.manual || p.auto, auto: p.auto, manual: p.manual, flags: p.flags, aliases: p.aliases,
-      likes: p.likes, dislikes: p.dislikes, evidence: p.evidence, ch: ch, heat: heat, judged: judged, shown: shown, pinned: p.pinned };
-  }).filter(function (x) { return x.judged || x.pinned || x.shown >= 5 || CHANNELS.some(function (c) { return x.flags[c] && x.flags[c] !== 'ふつう'; }); })
+      likes: p.likes, dislikes: p.dislikes, evidence: p.evidence, ch: ch, heat: heat, judged: judged, shown: shown, pinned: p.pinned, views: views };
+  }).filter(function (x) { return x.judged || x.pinned || x.shown >= 5 || (x.views && x.views.recent >= 3) || CHANNELS.some(function (c) { return x.flags[c] && x.flags[c] !== 'ふつう'; }); })
     .sort(function (a, b) { return (b.heat - a.heat) || (b.judged - a.judged) || (b.shown - a.shown); });
   return { months: months, channels: CHANNELS, flags: AUTHOR_FLAGS, items: list.slice(0, 80) };
 }
@@ -1802,6 +1835,147 @@ function apiSetAuthor(user, name, field, value, ch) {
     Store.use(null);
     lock.releaseLock();
   }
+  return true;
+}
+
+// ===== YouTube 視聴履歴（Google テイクアウト） =====
+/**
+ * テイクアウトの zip（watch-history.json）と、昔の watch-history.html を読み、
+ * チャンネル×月の視聴本数を「視聴履歴」シートにまとめる。2026-11-02 北原さんの依頼で追加。
+ * - 探す場所: このアカウントから見えるドライブ（共有された Takeout フォルダも含む）。ID はコードに書かない。
+ * - 新しいファイルが来たときだけ読み直す（読んだファイルは 設定「読んだ視聴履歴」に ID を残す）。
+ * - 広告の視聴は数えない。動画の題名はシートに最新の1本だけ残す（全部は残さない）。
+ * - 著者リストでは YouTube の「視聴」として月ごとの帯に出る。よく見るのに未登録のチャンネルはフィードに足す提案を出す。
+ */
+var VIEWS_RECENT_DAYS = 90;
+var VIEWS_SUGGEST_MIN = 5;
+
+function viewSources_() {
+  var out = [];
+  var it = DriveApp.searchFiles("title contains 'takeout-' and trashed = false");
+  while (it.hasNext()) { var f = it.next(); if (/\.zip$/i.test(f.getName())) out.push(f); }
+  var seenSize = {};
+  var it2 = DriveApp.searchFiles("title = 'watch-history.html' and trashed = false");
+  while (it2.hasNext()) { var h = it2.next(); var k = h.getSize(); if (!seenSize[k]) { seenSize[k] = true; out.push(h); } }
+  return out;
+}
+
+/** 新しいテイクアウトがあれば読み直す。毎朝の取得のあとに呼ぶ。 */
+function importWatchHistory_(force) {
+  var files = viewSources_();
+  if (!files.length) return;
+  var settings = Store.settings();
+  var done = String(settings['読んだ視聴履歴'] || '').split(',').filter(String);
+  var ids = files.map(function (f) { return f.getId(); });
+  if (!force && ids.every(function (id) { return done.indexOf(id) !== -1; })) return;
+  var events = {};
+  var count = 0;
+  files.forEach(function (f) {
+    var add = function (e) { var key = e.url + '|' + e.time; if (!events[key]) { events[key] = e; count++; } };
+    if (/\.zip$/i.test(f.getName())) {
+      Utilities.unzip(f.getBlob().setContentType('application/zip')).forEach(function (b) {
+        var n = b.getName();
+        if (/watch-history\.json$|視聴履歴\.json$|再生履歴\.json$/i.test(n)) parseWatchJson_(b.getDataAsString('UTF-8')).forEach(add);
+        else if (/watch-history\.html$|視聴履歴\.html$|再生履歴\.html$/i.test(n)) parseWatchHtml_(b.getDataAsString('UTF-8')).forEach(add);
+      });
+    } else {
+      parseWatchHtml_(f.getBlob().getDataAsString('UTF-8')).forEach(add);
+    }
+  });
+  writeViews_(Object.keys(events).map(function (k) { return events[k]; }));
+  Store.setSetting('読んだ視聴履歴', ids.join(','));
+  Store.log('視聴履歴', 'OK', files.length + 'ファイル / ' + count + '本');
+}
+
+/** JSON 形式: [{title, titleUrl, subtitles:[{name,url}], time, details}] */
+function parseWatchJson_(text) {
+  var list;
+  try { list = JSON.parse(text); } catch (e) { return []; }
+  return list.filter(function (x) {
+    return x && x.titleUrl && x.subtitles && x.subtitles[0] && !(x.details || []).some(function (d) { return /広告|Ads/i.test(d.name || ''); });
+  }).map(function (x) {
+    return { url: x.titleUrl, title: String(x.title || '').replace(/^Watched |\s*を視聴しました$/g, ''), channel: x.subtitles[0].name,
+      channelId: ((/channel\/(UC[\w-]{22})/.exec(x.subtitles[0].url || '')) || [])[1] || '', time: x.time };
+  });
+}
+
+/** HTML 形式（昔のテイクアウト）: <a href=動画>題名</a><br><a href=チャンネル>名前</a><br>日時 */
+function parseWatchHtml_(html) {
+  var out = [];
+  var re = /<a href="(https:\/\/www\.youtube\.com\/watch\?v=[^"]+)">([^<]*)<\/a><br><a href="https:\/\/www\.youtube\.com\/channel\/(UC[\w-]{22})">([^<]*)<\/a><br>([^<]+)</g;
+  var m;
+  while ((m = re.exec(html))) {
+    var t = parseTakeoutDate_(m[5]);
+    if (t) out.push({ url: decode_(m[1]), title: decode_(m[2]), channelId: m[3], channel: decode_(m[4]), time: t });
+  }
+  return out;
+}
+/** 「2025/08/10 15:15:29 JST」や「Aug 10, 2025, 3:15:29 PM JST」を ISO に。 */
+function parseTakeoutDate_(s) {
+  s = String(s).trim();
+  var m = /(\d{4})\/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2}):(\d{2})/.exec(s);
+  if (m) return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4] - 9, +m[5], +m[6])).toISOString();
+  var d = new Date(s.replace(/ /g, ' ').replace(/\s+[A-Z]{2,4}$/, ''));
+  return isNaN(d.getTime()) ? '' : d.toISOString();
+}
+
+/** チャンネル×月にまとめて 視聴履歴 シートを書き直す。 */
+function writeViews_(events) {
+  var agg = {};
+  events.forEach(function (e) {
+    var d = new Date(e.time); if (isNaN(d.getTime())) return;
+    var ym = Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM');
+    var key = (e.channelId || e.channel) + '|' + ym;
+    var a = agg[key] || (agg[key] = { channel: e.channel, id: e.channelId, ym: ym, n: 0, last: 0, title: '' });
+    a.n++;
+    if (d.getTime() > a.last) { a.last = d.getTime(); a.title = e.title; a.channel = e.channel; }
+  });
+  var rows = Object.keys(agg).map(function (k) { var a = agg[k]; return [a.channel, a.id, a.ym, a.n, new Date(a.last), a.title]; })
+    .sort(function (x, y) { return (y[2] > x[2] ? 1 : y[2] < x[2] ? -1 : 0) || y[3] - x[3]; });
+  var sh = Store.sheet(SHEETS.VIEWS);
+  if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, HEADERS.VIEWS.length).clearContent();
+  if (rows.length) sh.getRange(2, 1, rows.length, HEADERS.VIEWS.length).setValues(rows);
+}
+
+/** 視聴履歴シートを読む: チャンネル（フィード名にそろえる）→ {id, months:{ym:n}, recent, total} */
+function readViews_(book) {
+  var sh = book.getSheetByName(SHEETS.VIEWS);
+  var out = {};
+  if (!sh || sh.getLastRow() < 2) return out;
+  // 登録済みの YouTube フィードは、そのフィード名にそろえる（チャンネルIDで照合）
+  var feedName = {};
+  var fsh = book.getSheetByName(SHEETS.FEEDS);
+  if (fsh && fsh.getLastRow() >= 2) {
+    var H = HEADERS.FEEDS;
+    fsh.getRange(2, 1, fsh.getLastRow() - 1, H.length).getValues().forEach(function (r) {
+      var m = /channel_id=(UC[\w-]{22})/.exec(String(r[H.indexOf('URL')] || ''));
+      if (m) feedName[m[1]] = { name: String(r[H.indexOf('名前')]), enabled: r[H.indexOf('有効')] === true };
+    });
+  }
+  var since = Utilities.formatDate(new Date(Date.now() - VIEWS_RECENT_DAYS * 864e5), 'Asia/Tokyo', 'yyyy-MM');
+  sh.getRange(2, 1, sh.getLastRow() - 1, HEADERS.VIEWS.length).getValues().forEach(function (r) {
+    var id = String(r[1] || ''), f = feedName[id];
+    var name = f ? f.name : String(r[0] || '');
+    if (!name) return;
+    var v = out[name] || (out[name] = { id: id, months: {}, recent: 0, total: 0, subscribed: !!(f && f.enabled), lastTitle: '', last: 0 });
+    var n = Number(r[3]) || 0, ym = String(r[2]);
+    v.months[ym] = (v.months[ym] || 0) + n; v.total += n;
+    if (ym >= since) v.recent += n;
+    var t = r[4] instanceof Date ? r[4].getTime() : 0;
+    if (t > v.last) { v.last = t; v.lastTitle = String(r[5] || ''); }
+  });
+  return out;
+}
+
+/** 提案カード「フィードに足す」を受けたとき。 */
+function apiAddChannelFeed(user, name, channelId) {
+  if (!/^UC[\w-]{22}$/.test(String(channelId))) throw new Error('チャンネルIDが違います');
+  var book = mobileBook_(user);
+  try {
+    Store.use(book);
+    Store.ensureSchema();
+    addFeedIfNew_(name, RssYouTube.feedUrl(channelId), 'YouTube', 'YouTube チャンネル（視聴履歴から）');
+  } finally { Store.use(null); }
   return true;
 }
 

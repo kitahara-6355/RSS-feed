@@ -89,6 +89,9 @@ main{padding:12px 16px;display:grid;gap:12px;max-width:720px;margin:0 auto}
 .strip{display:flex;gap:3px;flex:none}
 .strip i{width:16px;height:16px;border-radius:4px;background:var(--line)}
 .strip i.g{background:var(--done)} .strip i.r{background:#c62828} .strip i.n{background:var(--sub)}
+.strip i.v{background:var(--accent)} .strip i.v.z{background:var(--line)}
+.rep.vw{color:var(--accent)}
+.nofeed{margin-left:auto;font-size:11px;color:var(--sub);border:1px dashed var(--line);border-radius:6px;padding:0 6px}
 .strip i.l1{opacity:.45} .strip i.l2{opacity:.7} .strip i.l3{opacity:1} .strip i.z{opacity:1}
 .mhead .strip em{width:16px;font-size:9px;font-style:normal;color:var(--sub);text-align:center;letter-spacing:-.05em}
 .arow select{margin-left:auto;font:inherit;font-size:12px;border:1px solid var(--line);border-radius:8px;padding:2px 4px;background:var(--card);color:var(--ink)}
@@ -146,7 +149,7 @@ var HINTS = {
   new: '右へスワイプ＝あとで読む　左へ＝興味なし',
   later: '右へスワイプ＝読んだ　左へ＝興味なし',
   rated: 'ここでは数字を直せます',
-  authors: '最近ハマっている順。色は月ごとの当たり（緑＝刺さった、赤＝外れ、灰＝見ただけ）'
+  authors: '最近ハマっている順。色は月ごとの当たり（緑＝刺さった、赤＝外れ、灰＝見ただけ、青＝YouTubeで見た本数）'
 };
 var suggest = null;
 var authorData = null;
@@ -283,7 +286,7 @@ function refreshBadges(a){
 
 function suggestHtml(){
   if (!suggest || view !== 'new') return '';
-  var yes = suggest.type === 'ミュート' ? 'ミュートする' : suggest.type === '量を絞る' ? '1日1本にする' : '注目にする';
+  var yes = suggest.type === 'ミュート' ? 'ミュートする' : suggest.type === '量を絞る' ? '1日1本にする' : suggest.type === 'フィードに足す' ? 'フィードに足す' : '注目にする';
   return '<div class="slot suggest" data-id="__suggest"><div class="under"><span class="l">' + yes + '</span><span class="r">今はしない</span></div>' +
     '<article class="card"><div class="sg-head">提案 ・ ' + esc(suggest.person) + ' × ' + esc(suggest.ch) + '</div>' +
     '<p class="sg-text">' + esc(suggest.reason) + '</p>' +
@@ -294,10 +297,12 @@ function answerSuggest(yes, dir){
   var sg = suggest; if (!sg) return;
   suggest = null;
   removeCard('__suggest', dir);
-  toast(yes ? sg.person + '（' + sg.ch + '）を「' + sg.type + '」にしました' : '30日は聞きません', false);
-  google.script.run.withSuccessHandler(function(){ if (yes) load(); })
-    .withFailureHandler(function(e){ toast('保存できませんでした: ' + e.message, false); })
-    .apiSetAuthor(USER, sg.person, yes ? 'flag' : 'snooze', yes ? sg.type : '', sg.ch);
+  var feed = sg.type === 'フィードに足す';
+  toast(!yes ? '30日は聞きません' : feed ? sg.person + 'をフィードに足しました（次の取得から新着に出ます）' : sg.person + '（' + sg.ch + '）を「' + sg.type + '」にしました', false);
+  var run = google.script.run.withSuccessHandler(function(){ if (yes) load(); })
+    .withFailureHandler(function(e){ toast('保存できませんでした: ' + e.message, false); });
+  if (yes && feed) run.apiAddChannelFeed(USER, sg.person, sg.channelId);
+  else run.apiSetAuthor(USER, sg.person, yes ? 'flag' : 'snooze', yes ? sg.type : '', sg.ch);
 }
 
 // ---- 著者タブ ----
@@ -320,6 +325,11 @@ function authorHtml(x){
       '<span class="rep ' + tone + '"><i>' + arrow + '</i>' + (j ? '+' + c.plus + ' −' + c.minus : c.n + '本') + '</span>' +
       '<select data-flag="' + esc(ch) + '" class="' + (FLAG_CLS[f] || '') + '">' + d.flags.map(function(o){ return '<option' + (o === f ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select></div>';
   }).join('');
+  if (x.views) {
+    rows += '<div class="arow"><span class="ach">視聴</span><span class="strip">' + x.views.months.map(function(n){
+      return '<i class="v l' + Math.min(3, Math.ceil(n / 4)) + (n ? '' : ' z') + '" title="' + n + '本"></i>'; }).join('') + '</span>' +
+      '<span class="rep vw">' + x.views.recent + '本/3か月</span>' + (x.views.subscribed ? '' : '<span class="nofeed">未登録</span>') + '</div>';
+  }
   var open = openAuthor === x.name;
   var detail = !open ? '' : '<div class="adetail">' +
     (x.likes.length ? '<p><b>刺さるテーマ</b> ' + esc(x.likes.join('・')) + '</p>' : '') +
