@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015" xmlns:media="http://search.yahoo.com/mrss/" xmlns="http://www.w3.org/2005/Atom">
+ <title>ReHacQ−リハック−</title>
+ <entry>
+  <id>yt:video:abc</id><title>【DX】中小企業のAI活用最前線</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=abc"/>
+  <author><name>ReHacQ−リハック−</name></author>
+  <published>2026-10-27T10:00:00+00:00</published><updated>2026-10-27T11:00:00+00:00</updated>
+  <media:group><media:title>x</media:title><media:thumbnail url="https://i.ytimg.com/vi/abc/hqdefault.jpg" width="480" height="360"/><media:description>生成AIを業務に取り入れる中小企業の事例。</media:description></media:group>
+ </entry>
+</feed>

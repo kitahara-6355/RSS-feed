@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+:root{
+  --bg:#f6f5f2; --card:#ffffff; --ink:#1d1d1f; --sub:#6b6b70; --line:#e4e2dd;
+  --accent:#1f6feb; --accent-soft:#e6efff; --done:#2e7d32; --later:#b26a00; --skip:#8a8a90;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#141416; --card:#1f1f22; --ink:#f1f1f3; --sub:#a0a0a8; --line:#2f2f34;
+    --accent:#6ea8ff; --accent-soft:#1d2b45; --done:#7ccf82; --later:#f0b35a; --skip:#77777f; }
+}
+*{box-sizing:border-box}
+html,body{overflow-x:hidden}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;line-height:1.55;
+  padding-bottom:max(80px,env(safe-area-inset-bottom));-webkit-tap-highlight-color:transparent}
+header{position:sticky;top:0;z-index:3;background:var(--bg);padding:12px 16px 0;
+  padding-top:max(12px,env(safe-area-inset-top));border-bottom:1px solid var(--line)}
+h1{font-size:18px;margin:0 0 4px}
+h1 small{font-weight:400;color:var(--sub);font-size:13px;margin-left:6px}
+.hint{font-size:12px;color:var(--sub);margin:0 0 6px}
+nav{display:flex;gap:4px}
+nav button{flex:1;border:0;background:none;color:var(--sub);font:inherit;font-size:14px;padding:10px 4px;
+  border-bottom:3px solid transparent;cursor:pointer}
+nav button.on{color:var(--ink);font-weight:700;border-bottom-color:var(--accent)}
+main{padding:12px 16px;display:grid;gap:12px;max-width:720px;margin:0 auto}
+.slot{position:relative;border-radius:14px;overflow:hidden;transition:height .22s ease, margin .22s ease, opacity .22s ease}
+.under{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;padding:0 22px;
+  font-weight:700;font-size:15px;color:#fff;border-radius:14px}
+.under .l,.under .r{opacity:0;transition:opacity .1s}
+.slot.toL .under{background:var(--skip)} .slot.toL .under .r{opacity:1}
+.slot.toR .under{background:var(--later)} .slot.toR .under .l{opacity:1}
+.slot.toR.done .under{background:var(--done)}
+.card{position:relative;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;
+  touch-action:pan-y;will-change:transform}
+.card.anim{transition:transform .2s ease-out}
+.meta{font-size:12px;color:var(--sub);display:flex;gap:8px;flex-wrap:wrap}
+.score{color:var(--accent);font-weight:700}
+.card a.title{display:block;color:var(--ink);text-decoration:none;font-weight:700;font-size:16px;margin:4px 0 6px}
+.sum{font-size:14px;color:var(--sub);margin:0 0 8px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.about{font-size:12px;color:var(--sub);background:var(--accent-soft);border-radius:8px;padding:6px 8px;margin:6px 0 2px}
+.words{font-size:13px;margin-bottom:10px}
+.words b{color:var(--accent);font-weight:700}
+.rate{display:flex;align-items:center;gap:6px;margin:6px 0}
+.rate span{font-size:12px;color:var(--sub);width:3.2em}
+.rate button{width:38px;height:36px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--ink);font:inherit;cursor:pointer}
+.rate button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.acts{display:flex;gap:8px;margin-top:10px}
+.acts button{flex:1;height:40px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--ink);font:inherit;font-size:14px;cursor:pointer}
+.acts button.skip{color:var(--sub)}
+.acts button.on{font-weight:700;border-color:currentColor}
+.acts button.later.on{color:var(--later)} .acts button.done.on{color:var(--done)}
+.rep{display:inline-flex;align-items:center;gap:3px;font-size:12px;font-weight:700;border-radius:999px;padding:0 8px;line-height:20px;
+  border:1px solid currentColor;white-space:nowrap}
+.rep.good{color:var(--done)} .rep.bad{color:#c62828} .rep.mid{color:var(--sub)}
+@media (prefers-color-scheme: dark){ .rep.bad{color:#ff8a80} }
+.rep i{font-style:normal;font-size:13px}
+.age.fresh{color:var(--done);font-weight:700} .age.old{color:#c62828;font-weight:700}
+@media (prefers-color-scheme: dark){ .age.old{color:#ff8a80} }
+.kind{font-size:11px;border-radius:6px;padding:0 6px;line-height:20px;background:var(--line);color:var(--sub)}
+.kind.stale{background:#c62828;color:#fff} .kind.keep{background:var(--accent-soft);color:var(--accent)}
+.slot.isStale .card{opacity:.6}
+.top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+#addBtn{border:1px solid var(--accent);color:var(--accent);background:none;border-radius:999px;font:inherit;font-size:13px;font-weight:700;padding:4px 12px;cursor:pointer;white-space:nowrap}
+#addForm{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;margin:4px 0 8px}
+#addForm p{font-size:12px;color:var(--sub);margin:0 0 8px}
+#addForm .row{display:flex;gap:8px}
+#addUrl{flex:1;min-width:0;height:40px;border:1px solid var(--line);border-radius:10px;padding:0 10px;font:inherit;font-size:16px;background:var(--bg);color:var(--ink)}
+#addGo{height:40px;border:0;border-radius:10px;background:var(--accent);color:#fff;font:inherit;font-weight:700;padding:0 16px}
+#addGo:disabled{opacity:.5}
+.pin{font-size:11px;border-radius:6px;padding:0 6px;line-height:20px;background:var(--accent);color:#fff}
+.empty,.msg{text-align:center;color:var(--sub);padding:40px 0;font-size:14px}
+.toast{position:fixed;left:50%;bottom:max(20px,env(safe-area-inset-bottom));transform:translateX(-50%) translateY(120%);
+  display:flex;align-items:center;gap:14px;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;
+  font-size:14px;opacity:0;pointer-events:none;transition:opacity .15s, transform .15s;z-index:5;max-width:calc(100% - 32px);width:max-content;border-radius:16px}
+.toast.show{opacity:.95;transform:translateX(-50%) translateY(0);pointer-events:auto}
+#toastText{overflow:hidden;text-overflow:ellipsis}
+.toast button{border:0;background:none;color:var(--accent);font:inherit;font-weight:700;padding:4px 0;cursor:pointer}
+@media (prefers-color-scheme: dark){ .toast button{color:#1f6feb} }
+</style>
+</head>
+<body>
+<header>
+  <div class="top"><h1>RSS学習ログ<small id="who"></small></h1><button id="addBtn" type="button">＋ URLを貼る</button></div>
+  <form id="addForm" hidden>
+    <p>気になった記事やYouTubeのURLを貼ると、読んだ記事として「興味5・重要5」で残し、その人と媒体を注目に加えて興味の重みを更新します。</p>
+    <div class="row"><input id="addUrl" type="url" inputmode="url" placeholder="https://..." autocomplete="off"><button id="addGo" type="submit">追加</button></div>
+  </form>
+  <p class="hint" id="hint"></p>
+  <nav>
+    <button data-v="new" class="on">新着 <span id="cNew"></span></button>
+    <button data-v="later">あとで <span id="cLater"></span></button>
+    <button data-v="rated">評価済み</button>
+  </nav>
+</header>
+<main id="list"><div class="msg">読み込み中…</div></main>
+<div class="toast" id="toast"><span id="toastText"></span><button id="undo" type="button">元に戻す</button></div>
+<script>
+var USER = <?= JSON.stringify(user) ?>;
+var view = 'new';
+var items = [];
+var counts = { new: 0, later: 0 };
+var lastMove = null;   // 元に戻す用 { a, index, prevStatus, prevInterest }
+var toastTimer = 0;
+var swiped = false;    // スワイプ直後のリンクの誤タップを止める
+
+// 画面ごとのスワイプ。右＝前向き、左＝興味なし。
+var SWIPE = {
+  new:   { right: { status: 'あとで読む', label: 'あとで読む' }, left: { status: '興味なし', label: '興味なし' } },
+  later: { right: { status: '完了', label: '読んだ' },        left: { status: '興味なし', label: '興味なし' } }
+};
+var HINTS = {
+  new: '右へスワイプ＝あとで読む　左へ＝興味なし',
+  later: '右へスワイプ＝読んだ　左へ＝興味なし',
+  rated: 'ここでは数字を直せます'
+};
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+// 年つきの日付と「何日前」。ニュース型で古いものは灰色の「古いニュース」、保存型は「古くても役立つ型」
+function day(a){
+  var ms = a.published; if (!ms) return '<span class="age">日付なし</span>';
+  var d = new Date(ms), days = Math.floor((Date.now() - ms) / 86400000);
+  var ago = days < 1 ? '今日' : days < 31 ? days + '日前' : days < 365 ? Math.floor(days / 30) + 'か月前' : Math.floor(days / 365) + '年以上前';
+  var cls = days < 8 ? 'fresh' : days < 365 ? 'mid' : 'old';
+  var tag = a.kind === 'news' ? (a.stale ? '<span class="kind stale">古いニュース</span>' : '<span class="kind">ニュース</span>')
+    : (days > 30 ? '<span class="kind keep">古くても役立つ型</span>' : '');
+  return '<span class="age ' + cls + '">' + d.getFullYear() + '/' + (d.getMonth()+1) + '/' + d.getDate() + '（' + ago + '）</span>' + tag;
+}
+
+function toast(text, withUndo){
+  $('toastText').textContent = text;
+  $('undo').style.display = withUndo ? '' : 'none';
+  $('toast').classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ $('toast').classList.remove('show'); lastMove = null; }, withUndo ? 4000 : 3800);
+}
+
+function showCounts(){
+  $('cNew').textContent = counts.new ? '(' + counts.new + ')' : '';
+  $('cLater').textContent = counts.later ? '(' + counts.later + ')' : '';
+}
+
+function load(){
+  $('hint').textContent = HINTS[view];
+  $('list').innerHTML = '<div class="msg">読み込み中…</div>';
+  google.script.run.withSuccessHandler(function(res){
+    items = res.items; counts = res.counts; linkRep();
+    $('who').textContent = res.name ? res.name + ' さん' : '';
+    showCounts(); render();
+  }).withFailureHandler(function(e){
+    $('list').innerHTML = '<div class="msg">読み込めませんでした: ' + esc(e.message) + '</div>';
+  }).apiArticles(USER, view);
+}
+
+function rateRow(a, field, label){
+  var cur = field === '興味度' ? a.interest : a.importance;
+  var h = '<div class="rate"><span>' + label + '</span>';
+  for (var i = 1; i <= 5; i++) h += '<button data-f="' + field + '" data-v="' + i + '" class="' + (cur === i ? 'on' : '') + '">' + i + '</button>';
+  return h + '</div>';
+}
+
+function cardHtml(a){
+  var sw = SWIPE[view];
+  return '<div class="slot' + (a.stale ? ' isStale' : '') + '" data-id="' + esc(a.id) + '">' +
+    (sw ? '<div class="under"><span class="l">' + sw.right.label + '</span><span class="r">' + sw.left.label + '</span></div>' : '') +
+    '<article class="card">' +
+      '<div class="meta"><span>' + esc(a.source) + '</span>' + repBadge(a.src, '媒体') + day(a) + (a.score ? '<span class="score">関連度 ' + a.score + '</span>' : '') + '</div>' +
+      (a.about || a.author ? '<div class="about">' + (a.author && a.author !== a.source ? esc(a.author) + ' ' + repBadge(a.who, '人') + '／' : '') + esc(a.about || '発信元の紹介はまだありません') + '</div>' : '') +
+      (a.pinned ? '<span class="pin">自分で追加</span>' : '') +
+      '<a class="title" href="' + esc(a.link) + '" target="_blank" rel="noopener">' + esc(a.title) + '</a>' +
+      (a.summary ? '<p class="sum">' + esc(a.summary) + '</p>' : '') +
+      '<div class="words"><b>当たった興味ワード</b> ' + esc(a.words || a.tags || 'なし') + '</div>' +
+      rateRow(a, '興味度', '興味') + rateRow(a, '重要度', '重要') +
+      '<div class="acts">' +
+        '<button class="skip ' + (a.status === '興味なし' ? 'on' : '') + '" data-s="興味なし">興味なし</button>' +
+        '<button class="later ' + (a.status === 'あとで読む' ? 'on' : '') + '" data-s="あとで読む">あとで読む</button>' +
+        '<button class="done ' + (a.status === '完了' ? 'on' : '') + '" data-s="完了">読んだ</button>' +
+      '</div>' +
+    '</article></div>';
+}
+
+// ---- 媒体・書き手の評価（サーバーと同じ数え方。仕分けたらその場で数え直す） ----
+var repMap = {};
+function judge(status, interest){
+  if (status === '興味なし' || (interest && interest <= 2)) return -1;
+  if (status === 'あとで読む' || status === '完了' || interest >= 4) return 1;
+  return 0;
+}
+function rate(p, m){ return p + m ? (p - m) / (p + m) : null; }
+function finish(o){
+  var now = rate(o.rp, o.rm), before = rate(o.plus - o.rp, o.minus - o.rm), all = rate(o.plus, o.minus);
+  o.score = all === null ? 0 : all;
+  o.trend = now === null ? 'flat' : before === null ? (now > 0 ? 'up' : now < 0 ? 'down' : 'flat')
+    : (now - before > 0.2 ? 'up' : now - before < -0.2 ? 'down' : 'flat');
+}
+// 同じ媒体・同じ人の記事が同じ数字を見るように、1つの入れ物にまとめる
+function linkRep(){
+  repMap = {};
+  items.forEach(function(a){
+    a.src = share('媒体:' + a.source, a.src);
+    a.who = a.author && a.author !== a.source ? share('人:' + a.author, a.who) : null;
+  });
+}
+function share(key, o){
+  if (!repMap[key]) repMap[key] = o || { plus: 0, minus: 0, rp: 0, rm: 0, score: 0, trend: 'flat' };
+  return repMap[key];
+}
+function adjust(o, sign, d){
+  if (!o || !sign) return;
+  if (sign > 0) { o.plus += d; o.rp += d; } else { o.minus += d; o.rm += d; }  // 今の仕分けは「最近」に入る
+  finish(o);
+}
+function rejudge(a, beforeStatus, beforeInterest){
+  var s0 = judge(beforeStatus, beforeInterest), s1 = judge(a.status, a.interest);
+  if (s0 === s1) return;
+  [a.src, a.who].forEach(function(o){ adjust(o, s0, -1); adjust(o, s1, 1); });
+  refreshBadges(a);
+}
+function repBadge(o, kind){
+  if (!o || !(o.plus + o.minus)) return '<span class="rep mid" title="' + kind + 'の評価はまだありません">' + kind + ' 新</span>';
+  var cls = o.score > 0.2 ? 'good' : o.score < -0.2 ? 'bad' : 'mid';
+  var arrow = o.trend === 'up' ? '↗' : o.trend === 'down' ? '↘' : '→';
+  var tip = kind + 'の評価: プラス' + o.plus + '・マイナス' + o.minus + '（矢印は最近2週間の変化）';
+  return '<span class="rep ' + cls + '" title="' + tip + '"><i>' + arrow + '</i>' + kind + ' +' + o.plus + ' −' + o.minus + '</span>';
+}
+// 同じ媒体・人のカードのバッジだけ書き換える（並びや位置は動かさない）
+function refreshBadges(a){
+  items.forEach(function(b){
+    if (b.src !== a.src && !(a.who && b.who === a.who)) return;
+    var s = slotOf(b.id); if (!s) return;
+    var tmp = document.createElement('div'); tmp.innerHTML = cardHtml(b);
+    var fresh = tmp.firstChild;
+    ['.meta', '.about'].forEach(function(sel){
+      var o = s.querySelector(sel), n = fresh.querySelector(sel);
+      if (o && n) o.innerHTML = n.innerHTML;
+    });
+  });
+}
+
+function render(){
+  if (!items.length) {
+    $('list').innerHTML = '<div class="empty">' + (view === 'new' ? '未読の記事はありません' : view === 'later' ? '「あとで読む」はありません' : 'まだ評価した記事はありません') + '</div>';
+    return;
+  }
+  $('list').innerHTML = items.map(cardHtml).join('');
+}
+
+function find(id){ for (var i = 0; i < items.length; i++) if (items[i].id === id) return i; return -1; }
+function slotOf(id){ return document.querySelector('.slot[data-id="' + CSS.escape(id) + '"]'); }
+
+// 件数の付け替え（画面の数字だけ。サーバーは次に開いたとき正しい数を返す）
+function countMove(from, to, sign){
+  var k = function(s){ return s === '未読' || s === '' ? 'new' : s === 'あとで読む' ? 'later' : null; };
+  if (k(from)) counts[k(from)] -= sign; if (k(to)) counts[k(to)] += sign;
+  showCounts();
+}
+
+// 今の画面から外れるか（新着で あとで/興味なし/読んだ、あとでで 興味なし/読んだ/未読）
+function leavesView(status){
+  if (view === 'new') return status !== '未読';
+  if (view === 'later') return status !== 'あとで読む';
+  return false;
+}
+
+/** 仕分け。画面はすぐ動かし、保存はうしろで送る。失敗したら元に戻す。 */
+function triage(a, status, dir){
+  var prevStatus = a.status, prevInterest = a.interest;
+  var interest = null;
+  if (status === '興味なし' && !a.interest) { interest = 1; }          // 学習で重みが下がるよう最低点を付ける
+  if (prevStatus === '興味なし' && status !== '興味なし' && prevInterest === 1) { interest = ''; }
+  a.status = status; if (interest !== null) a.interest = interest === '' ? 0 : interest;
+  countMove(prevStatus, status, 1);
+  rejudge(a, prevStatus, prevInterest);
+  var index = find(a.id);
+  var label = status === '興味なし' ? '興味なしにしました' : status === 'あとで読む' ? 'あとで読むへ' : status === '完了' ? '読んだにしました' : '未読に戻しました';
+  if (leavesView(status)) { removeCard(a.id, dir); items.splice(index, 1); }
+  else { var s = slotOf(a.id); if (s) s.outerHTML = cardHtml(a); }
+  lastMove = { a: a, index: index, prevStatus: prevStatus, prevInterest: prevInterest, left: leavesView(status) };
+  toast(label, true);
+  send(a, status, interest, function(){
+    var s0 = a.status, i0 = a.interest;
+    a.status = prevStatus; a.interest = prevInterest; countMove(prevStatus, status, -1); rejudge(a, s0, i0);
+    if (leavesView(status) && find(a.id) === -1) { items.splice(Math.min(index, items.length), 0, a); }
+    render();
+  });
+}
+
+function send(a, status, interest, onFail){
+  google.script.run.withSuccessHandler(function(){})
+    .withFailureHandler(function(e){ onFail(); toast('保存できませんでした: ' + e.message, false); })
+    .apiTriage(USER, a.row, a.id, status, interest);
+}
+
+function undo(){
+  var m = lastMove; if (!m) return; lastMove = null;
+  $('toast').classList.remove('show');
+  var a = m.a, nowStatus = a.status;
+  var interest = m.prevInterest === a.interest ? null : (m.prevInterest || '');
+  var i0 = a.interest;
+  a.status = m.prevStatus; a.interest = m.prevInterest;
+  rejudge(a, nowStatus, i0);
+  countMove(nowStatus, m.prevStatus, 1);
+  if (m.left && find(a.id) === -1) items.splice(Math.min(m.index, items.length), 0, a);
+  render();
+  var s = slotOf(a.id); if (s) s.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  send(a, m.prevStatus, interest, function(){ load(); });
+}
+$('undo').addEventListener('click', undo);
+
+// URLを貼る
+$('addBtn').addEventListener('click', function(){
+  var f = $('addForm'); f.hidden = !f.hidden;
+  if (!f.hidden) {
+    $('addUrl').focus();
+    // クリップボードにURLがあれば入れておく（許可されないときは何もしない）
+    try { navigator.clipboard.readText().then(function(t){ if (/^https?:\/\//.test(t.trim()) && !$('addUrl').value) $('addUrl').value = t.trim(); }).catch(function(){}); } catch (e) {}
+  }
+});
+$('addForm').addEventListener('submit', function(ev){
+  ev.preventDefault();
+  var url = $('addUrl').value.trim(); if (!url) return;
+  $('addGo').disabled = true; $('addGo').textContent = '読み込み中…';
+  google.script.run.withSuccessHandler(function(r){
+    $('addGo').disabled = false; $('addGo').textContent = '追加';
+    $('addUrl').value = ''; $('addForm').hidden = true;
+    toast((r.existed ? '印を付け直しました: ' : '追加しました: ') + r.title.slice(0, 14) + (r.added.length ? '／注目に ' + r.added.join('・') : ''), false);
+    if (view === 'rated') load();
+  }).withFailureHandler(function(e){
+    $('addGo').disabled = false; $('addGo').textContent = '追加';
+    toast('追加できませんでした: ' + e.message, false);
+  }).apiAddUrl(USER, url);
+});
+
+function removeCard(id, dir){
+  var slot = slotOf(id); if (!slot) return;
+  var card = slot.querySelector('.card');
+  card.classList.add('anim');
+  card.style.transform = 'translateX(' + (dir === 'left' ? '-' : '') + '110%)';
+  slot.style.height = slot.offsetHeight + 'px';
+  requestAnimationFrame(function(){
+    slot.style.height = '0px'; slot.style.marginBottom = '-12px'; slot.style.opacity = '0';
+  });
+  setTimeout(function(){ if (slot.parentNode) slot.parentNode.removeChild(slot); if (!items.length) render(); }, 240);
+}
+
+// ボタン（スワイプできない人・PC向け）
+$('list').addEventListener('click', function(ev){
+  var b = ev.target.closest('button'); if (!b) return;
+  var slot = b.closest('.slot'); var a = items[find(slot.dataset.id)]; if (!a) return;
+  if (b.dataset.f) {
+    var key = b.dataset.f === '興味度' ? 'interest' : 'importance';
+    var before = a[key], v = Number(b.dataset.v);
+    var ib = a.interest;
+    a[key] = before === v ? 0 : v;  // 同じ数字をもう一度押すと取り消し
+    if (key === 'interest') rejudge(a, a.status, ib);
+    b.parentNode.querySelectorAll('button').forEach(function(x){ x.classList.toggle('on', Number(x.dataset.v) === a[key]); });
+    google.script.run.withSuccessHandler(function(){})
+      .withFailureHandler(function(e){ a[key] = before; render(); toast('保存できませんでした: ' + e.message, false); })
+      .apiRate(USER, a.row, a.id, b.dataset.f, a[key] || '');
+  } else if (b.dataset.s) {
+    var next = a.status === b.dataset.s ? '未読' : b.dataset.s;
+    triage(a, next, next === '興味なし' ? 'left' : 'right');
+  }
+});
+
+// スワイプ。縦のスクロールは邪魔しない（横に動いたと分かってから動かす）
+(function(){
+  var st = null;
+  var list = $('list');
+  list.addEventListener('touchstart', function(ev){
+    if (!SWIPE[view] || ev.touches.length !== 1) return;
+    if (ev.target.closest('button')) return;
+    var slot = ev.target.closest('.slot'); if (!slot) return;
+    var t = ev.touches[0];
+    st = { slot: slot, card: slot.querySelector('.card'), x: t.clientX, y: t.clientY, dx: 0, mode: null, t: Date.now() };
+  }, { passive: true });
+  list.addEventListener('touchmove', function(ev){
+    if (!st) return;
+    var t = ev.touches[0], dx = t.clientX - st.x, dy = t.clientY - st.y;
+    if (!st.mode) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      st.mode = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
+      if (st.mode === 'x') st.card.classList.remove('anim');
+    }
+    if (st.mode !== 'x') return;
+    ev.preventDefault();
+    st.dx = dx;
+    st.card.style.transform = 'translateX(' + dx + 'px)';
+    st.slot.classList.toggle('toR', dx > 0); st.slot.classList.toggle('toL', dx < 0);
+    st.slot.classList.toggle('done', view === 'later');
+  }, { passive: false });
+  function end(){
+    if (!st) return;
+    var s = st; st = null;
+    if (s.mode !== 'x') return;
+    swiped = true; setTimeout(function(){ swiped = false; }, 400);
+    var w = s.slot.offsetWidth, speed = Math.abs(s.dx) / Math.max(1, Date.now() - s.t);
+    var go = Math.abs(s.dx) > w * 0.28 || (Math.abs(s.dx) > 40 && speed > 0.5);
+    if (!go) {
+      s.card.classList.add('anim'); s.card.style.transform = '';
+      setTimeout(function(){ s.slot.classList.remove('toL', 'toR'); }, 200);
+      return;
+    }
+    var dir = s.dx > 0 ? 'right' : 'left';
+    var a = items[find(s.slot.dataset.id)]; if (!a) return;
+    triage(a, SWIPE[view][dir].status, dir);
+  }
+  list.addEventListener('touchend', end);
+  list.addEventListener('touchcancel', end);
+  // リンクを押したつもりがスワイプだったときは開かない
+  list.addEventListener('click', function(ev){ if (ev.target.closest('a') && swiped) { ev.preventDefault(); swiped = false; } }, true);
+})();
+
+document.querySelectorAll('nav button').forEach(function(b){
+  b.addEventListener('click', function(){
+    document.querySelectorAll('nav button').forEach(function(x){ x.classList.toggle('on', x === b); });
+    view = b.dataset.v; load();
+  });
+});
+load();
+</script>
+</body>
+</html>
