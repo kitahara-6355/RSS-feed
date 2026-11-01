@@ -74,6 +74,33 @@ main{padding:12px 16px;display:grid;gap:12px;max-width:720px;margin:0 auto}
 #addGo{height:40px;border:0;border-radius:10px;background:var(--accent);color:#fff;font:inherit;font-weight:700;padding:0 16px}
 #addGo:disabled{opacity:.5}
 .pin{font-size:11px;border-radius:6px;padding:0 6px;line-height:20px;background:var(--accent);color:#fff}
+.suggest .card{border:2px solid var(--accent)}
+.sg-head{font-size:12px;font-weight:700;color:var(--accent)}
+.sg-text{margin:6px 0 4px;font-size:15px}
+.sg-hint{font-size:11px;color:var(--sub);margin:8px 0 0}
+.acts button.sg-yes{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:700}
+.author .ahead{display:flex;align-items:center;gap:8px}
+.author .ahead b{font-size:16px}
+.author .more{margin-left:auto;font-size:12px;color:var(--accent)}
+.aview{font-size:13px;color:var(--sub);margin:4px 0 8px}
+.mhead{padding:0 15px;margin-bottom:-6px!important}
+.arow,.mhead{display:flex;align-items:center;gap:8px;margin:4px 0}
+.ach{width:5.2em;font-size:12px;color:var(--sub);flex:none}
+.strip{display:flex;gap:3px;flex:none}
+.strip i{width:16px;height:16px;border-radius:4px;background:var(--line)}
+.strip i.g{background:var(--done)} .strip i.r{background:#c62828} .strip i.n{background:var(--sub)}
+.strip i.l1{opacity:.45} .strip i.l2{opacity:.7} .strip i.l3{opacity:1} .strip i.z{opacity:1}
+.mhead .strip em{width:16px;font-size:9px;font-style:normal;color:var(--sub);text-align:center;letter-spacing:-.05em}
+.arow select{margin-left:auto;font:inherit;font-size:12px;border:1px solid var(--line);border-radius:8px;padding:2px 4px;background:var(--card);color:var(--ink)}
+.arow select.f-focus{border-color:var(--done);color:var(--done);font-weight:700}
+.arow select.f-less{border-color:var(--later);color:var(--later)}
+.arow select.f-mute{border-color:#c62828;color:#c62828}
+.adetail{border-top:1px solid var(--line);margin-top:8px;padding-top:8px;font-size:13px}
+.adetail p{margin:4px 0} .adetail ul{margin:2px 0 6px;padding-left:18px}
+.adetail label{display:block;font-size:12px;color:var(--sub);margin:8px 0 2px}
+.adetail textarea,.adetail input{display:block;width:100%;font:inherit;font-size:16px;border:1px solid var(--line);border-radius:8px;padding:6px;background:var(--bg);color:var(--ink);margin-top:4px}
+.adetail .auto{font-size:12px;color:var(--sub)}
+.adetail button{margin-top:6px;height:36px;border:0;border-radius:10px;background:var(--accent);color:#fff;font:inherit;font-weight:700;padding:0 16px}
 .empty,.msg{text-align:center;color:var(--sub);padding:40px 0;font-size:14px}
 .toast{position:fixed;left:50%;bottom:max(20px,env(safe-area-inset-bottom));transform:translateX(-50%) translateY(120%);
   display:flex;align-items:center;gap:14px;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;
@@ -96,6 +123,7 @@ main{padding:12px 16px;display:grid;gap:12px;max-width:720px;margin:0 auto}
     <button data-v="new" class="on">新着 <span id="cNew"></span></button>
     <button data-v="later">あとで <span id="cLater"></span></button>
     <button data-v="rated">評価済み</button>
+    <button data-v="authors">著者</button>
   </nav>
 </header>
 <main id="list"><div class="msg">読み込み中…</div></main>
@@ -117,8 +145,12 @@ var SWIPE = {
 var HINTS = {
   new: '右へスワイプ＝あとで読む　左へ＝興味なし',
   later: '右へスワイプ＝読んだ　左へ＝興味なし',
-  rated: 'ここでは数字を直せます'
+  rated: 'ここでは数字を直せます',
+  authors: '最近ハマっている順。色は月ごとの当たり（緑＝刺さった、赤＝外れ、灰＝見ただけ）'
 };
+var suggest = null;
+var authorData = null;
+var openAuthor = '';
 
 function $(id){ return document.getElementById(id); }
 function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
@@ -149,8 +181,14 @@ function showCounts(){
 function load(){
   $('hint').textContent = HINTS[view];
   $('list').innerHTML = '<div class="msg">読み込み中…</div>';
+  if (view === 'authors') {
+    google.script.run.withSuccessHandler(function(res){ authorData = res; renderAuthors(); })
+      .withFailureHandler(function(e){ $('list').innerHTML = '<div class="msg">読み込めませんでした: ' + esc(e.message) + '</div>'; })
+      .apiAuthors(USER);
+    return;
+  }
   google.script.run.withSuccessHandler(function(res){
-    items = res.items; counts = res.counts; linkRep();
+    items = res.items; counts = res.counts; suggest = res.suggest || null; linkRep();
     $('who').textContent = res.name ? res.name + ' さん' : '';
     showCounts(); render();
   }).withFailureHandler(function(e){
@@ -204,7 +242,7 @@ function linkRep(){
   repMap = {};
   items.forEach(function(a){
     a.src = share('媒体:' + a.source, a.src);
-    a.who = a.author && a.author !== a.source ? share('人:' + a.author, a.who) : null;
+    a.who = a.who && a.pkey ? share('人:' + a.pkey, a.who) : null;  // 人×経路ごと
   });
 }
 function share(key, o){
@@ -243,12 +281,73 @@ function refreshBadges(a){
   });
 }
 
+function suggestHtml(){
+  if (!suggest || view !== 'new') return '';
+  var yes = suggest.type === 'ミュート' ? 'ミュートする' : suggest.type === '量を絞る' ? '1日1本にする' : '注目にする';
+  return '<div class="slot suggest" data-id="__suggest"><div class="under"><span class="l">' + yes + '</span><span class="r">今はしない</span></div>' +
+    '<article class="card"><div class="sg-head">提案 ・ ' + esc(suggest.person) + ' × ' + esc(suggest.ch) + '</div>' +
+    '<p class="sg-text">' + esc(suggest.reason) + '</p>' +
+    '<div class="acts"><button data-sg="no">今はしない</button><button class="sg-yes" data-sg="yes">' + yes + '</button></div>' +
+    '<p class="sg-hint">右へスワイプ＝' + yes + '　左へ＝今はしない（30日は聞きません）</p></article></div>';
+}
+function answerSuggest(yes, dir){
+  var sg = suggest; if (!sg) return;
+  suggest = null;
+  removeCard('__suggest', dir);
+  toast(yes ? sg.person + '（' + sg.ch + '）を「' + sg.type + '」にしました' : '30日は聞きません', false);
+  google.script.run.withSuccessHandler(function(){ if (yes) load(); })
+    .withFailureHandler(function(e){ toast('保存できませんでした: ' + e.message, false); })
+    .apiSetAuthor(USER, sg.person, yes ? 'flag' : 'snooze', yes ? sg.type : '', sg.ch);
+}
+
+// ---- 著者タブ ----
+var FLAG_CLS = { '注目': 'f-focus', '量を絞る': 'f-less', 'ミュート': 'f-mute' };
+function strip(c){
+  return c.months.map(function(m){
+    var cls = !m.n ? 'z' : m.p > m.m ? 'g' : m.m > m.p ? 'r' : 'n';
+    var lv = Math.min(3, Math.ceil((m.p + m.m || m.n) / 3));
+    return '<i class="' + cls + ' l' + lv + '" title="' + m.n + '本 +' + m.p + ' −' + m.m + '"></i>';
+  }).join('');
+}
+function authorHtml(x){
+  var d = authorData;
+  var rows = d.channels.filter(function(ch){ return x.ch[ch]; }).map(function(ch){
+    var c = x.ch[ch], f = x.flags[ch] || 'ふつう';
+    var arrow = c.trend === 'up' ? '↗' : c.trend === 'down' ? '↘' : '→';
+    var j = c.plus + c.minus;
+    var tone = !j ? 'mid' : c.score > 0.2 ? 'good' : c.score < -0.2 ? 'bad' : 'mid';
+    return '<div class="arow"><span class="ach">' + ch + '</span><span class="strip">' + strip(c) + '</span>' +
+      '<span class="rep ' + tone + '"><i>' + arrow + '</i>' + (j ? '+' + c.plus + ' −' + c.minus : c.n + '本') + '</span>' +
+      '<select data-flag="' + esc(ch) + '" class="' + (FLAG_CLS[f] || '') + '">' + d.flags.map(function(o){ return '<option' + (o === f ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select></div>';
+  }).join('');
+  var open = openAuthor === x.name;
+  var detail = !open ? '' : '<div class="adetail">' +
+    (x.likes.length ? '<p><b>刺さるテーマ</b> ' + esc(x.likes.join('・')) + '</p>' : '') +
+    (x.dislikes.length ? '<p><b>刺さらないテーマ</b> ' + esc(x.dislikes.join('・')) + '</p>' : '') +
+    (x.evidence.length ? '<p><b>刺さった記事・動画</b></p><ul>' + x.evidence.map(function(e){ return '<li><a href="' + esc(e.link) + '" target="_blank" rel="noopener">' + esc(e.title) + '</a> <small>' + esc(e.ch) + '</small></li>'; }).join('') + '</ul>' : '') +
+    '<label>見方（自分の言葉で。空なら自動の文を使います）<textarea data-manual rows="2">' + esc(x.manual) + '</textarea></label>' +
+    '<label>別名（表記ゆれ。読点で区切る）<input data-aliases value="' + esc(x.aliases.join('、')) + '"></label>' +
+    '<p class="auto">自動の見方: ' + esc(x.auto) + '</p><button data-save>保存</button></div>';
+  return '<article class="card author' + (open ? ' open' : '') + '" data-name="' + esc(x.name) + '">' +
+    '<div class="ahead"><b>' + esc(x.name) + '</b>' + (x.pinned ? '<span class="pin">自分で追加</span>' : '') + '<span class="more">' + (open ? '閉じる' : '詳しく') + '</span></div>' +
+    '<p class="aview">' + esc(x.view) + '</p>' + rows + detail + '</article>';
+}
+function renderAuthors(){
+  var d = authorData;
+  if (!d || !d.items.length) { $('list').innerHTML = '<div class="empty">まだ著者がいません。仕分けやURLの貼り付けを続けると出てきます</div>'; return; }
+  var m = d.months.map(function(x){ return Number(x.slice(5)); });
+  $('list').innerHTML = '<div class="mhead"><span class="ach">月</span><span class="strip">' + m.map(function(x){ return '<em>' + x + '</em>'; }).join('') + '</span></div>' +
+    d.items.map(authorHtml).join('');
+}
+function authorOf(el){ var c = el.closest('.author'); if (!c) return null; var n = c.dataset.name; return authorData.items.filter(function(x){ return x.name === n; })[0]; }
+
 function render(){
-  if (!items.length) {
+  if (view === 'authors') return renderAuthors();
+  if (!items.length && !(suggest && view === 'new')) {
     $('list').innerHTML = '<div class="empty">' + (view === 'new' ? '未読の記事はありません' : view === 'later' ? '「あとで読む」はありません' : 'まだ評価した記事はありません') + '</div>';
     return;
   }
-  $('list').innerHTML = items.map(cardHtml).join('');
+  $('list').innerHTML = suggestHtml() + items.map(cardHtml).join('');
 }
 
 function find(id){ for (var i = 0; i < items.length; i++) if (items[i].id === id) return i; return -1; }
@@ -351,7 +450,24 @@ function removeCard(id, dir){
 
 // ボタン（スワイプできない人・PC向け）
 $('list').addEventListener('click', function(ev){
+  if (view === 'authors') {
+    var x = authorOf(ev.target); if (!x) return;
+    if (ev.target.closest('select,textarea,input,a')) return;
+    if (ev.target.closest('[data-save]')) {
+      var card = ev.target.closest('.author');
+      var manual = card.querySelector('[data-manual]').value.trim(), aliases = card.querySelector('[data-aliases]').value.trim();
+      x.manual = manual; x.view = manual || x.auto; x.aliases = aliases ? aliases.split(/[,、]/).map(function(t){ return t.trim(); }).filter(String) : [];
+      openAuthor = ''; renderAuthors(); toast('保存しました', false);
+      google.script.run.withSuccessHandler(function(){
+        google.script.run.withFailureHandler(function(e){ toast('保存できませんでした: ' + e.message, false); }).apiSetAuthor(USER, x.name, 'aliases', aliases, '');
+      }).withFailureHandler(function(e){ toast('保存できませんでした: ' + e.message, false); }).apiSetAuthor(USER, x.name, 'manual', manual, '');
+      return;
+    }
+    if (ev.target.closest('.ahead,.aview')) { openAuthor = openAuthor === x.name ? '' : x.name; renderAuthors(); }
+    return;
+  }
   var b = ev.target.closest('button'); if (!b) return;
+  if (b.dataset.sg) { answerSuggest(b.dataset.sg === 'yes', b.dataset.sg === 'yes' ? 'right' : 'left'); return; }
   var slot = b.closest('.slot'); var a = items[find(slot.dataset.id)]; if (!a) return;
   if (b.dataset.f) {
     var key = b.dataset.f === '興味度' ? 'interest' : 'importance';
@@ -367,6 +483,17 @@ $('list').addEventListener('click', function(ev){
     var next = a.status === b.dataset.s ? '未読' : b.dataset.s;
     triage(a, next, next === '興味なし' ? 'left' : 'right');
   }
+});
+
+// 著者のフラグを変える（すぐ反映、保存は裏）
+$('list').addEventListener('change', function(ev){
+  var sel = ev.target.closest('select[data-flag]'); if (!sel) return;
+  var x = authorOf(sel); var ch = sel.dataset.flag, before = x.flags[ch] || 'ふつう';
+  x.flags[ch] = sel.value; sel.className = FLAG_CLS[sel.value] || '';
+  toast(x.name + '（' + ch + '）を「' + sel.value + '」にしました', false);
+  google.script.run.withSuccessHandler(function(){})
+    .withFailureHandler(function(e){ x.flags[ch] = before; renderAuthors(); toast('保存できませんでした: ' + e.message, false); })
+    .apiSetAuthor(USER, x.name, 'flag', sel.value, ch);
 });
 
 // スワイプ。縦のスクロールは邪魔しない（横に動いたと分かってから動かす）
@@ -408,6 +535,7 @@ $('list').addEventListener('click', function(ev){
       return;
     }
     var dir = s.dx > 0 ? 'right' : 'left';
+    if (s.slot.dataset.id === '__suggest') { answerSuggest(dir === 'right', dir); return; }
     var a = items[find(s.slot.dataset.id)]; if (!a) return;
     triage(a, SWIPE[view][dir].status, dir);
   }

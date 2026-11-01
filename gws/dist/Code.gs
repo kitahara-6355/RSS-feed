@@ -260,6 +260,7 @@ var SHEETS = {
   FEEDS: 'フィード',
   ARTICLES: '記事',
   KEYWORDS: '興味キーワード',
+  AUTHORS: '著者',
   SETTINGS: '設定',
   LOG: 'ログ'
 };
@@ -270,6 +271,8 @@ var HEADERS = {
   ARTICLES: ['ID', '取得日時', '公開日時', 'ソース', 'タイトル', 'URL', '概要', 'タグ', '関連度',
     'AI要約', '興味度', '重要度', 'ステータス', '画像', '当たった興味ワード', '書き手', '評価日時', '追加元'],
   KEYWORDS: ['キーワード', '重み', '分類', '由来'],
+  AUTHORS: ['名前', '別名', '見方（手書き）', 'フラグ 記事', 'フラグ まとめ経由', 'フラグ YouTube', 'フラグ X', '提案を保留',
+    '見方（自動）', '記事', 'まとめ経由', 'YouTube', 'X', '刺さるテーマ', '刺さらないテーマ', '最終判定', '更新'],
   SETTINGS: ['項目', '値', '説明'],
   LOG: ['日時', '処理', '結果', '詳細']
 };
@@ -793,6 +796,7 @@ function runFetch() {
     (errors.length ? ' / ' + errors.join(' | ') : ''));
 
   if (settings['要約方式'] && settings['要約方式'] !== 'なし') runSummaries();
+  try { rebuildAuthors_(); } catch (e) { Store.log('著者', 'エラー', e.message); }
 }
 
 /**
@@ -849,6 +853,7 @@ function runLearn() {
   });
   Store.saveLearned(average_(tagTotals), average_(sourceTotals));
   Store.log('学習', 'OK', 'タグ' + Object.keys(tagTotals).length + '件 / ソース' + Object.keys(sourceTotals).length + '件');
+  try { rebuildAuthors_(); } catch (e) { Store.log('著者', 'エラー', e.message); }
 }
 
 function add_(totals, key, score) {
@@ -1353,49 +1358,42 @@ function articleCols_() {
 /** 画面用の記事一覧。view: new（未読を関連度順）/ later（あとで読む）/ rated（最近評価したもの） */
 function apiArticles(user, view) {
   var book = mobileBook_(user);
-  var sh = book.getSheetByName(SHEETS.ARTICLES);
   var name = '';
   var intros = {};
   try { Store.use(book); name = Store.profile()['利用者名'] || ''; intros = Store.feedIntros(); } finally { Store.use(null); }
-  if (!sh || sh.getLastRow() < 2) return { name: name, items: [], counts: { new: 0, later: 0 } };
-  var c = articleCols_();
-  var values = sh.getRange(2, 1, sh.getLastRow() - 1, HEADERS.ARTICLES.length).getValues();
-  var all = values.map(function (r, i) {
-    var pub = r[c['公開日時']] instanceof Date ? r[c['公開日時']] : (r[c['取得日時']] instanceof Date ? r[c['取得日時']] : null);
-    return {
-      row: i + 2, id: String(r[c['ID']]), title: String(r[c['タイトル']] || ''), source: String(r[c['ソース']] || ''),
-      link: String(r[c['URL']] || ''), summary: String(r[c['AI要約']] || r[c['概要']] || '').slice(0, 220),
-      tags: String(r[c['タグ']] || ''), score: Number(r[c['関連度']]) || 0, published: pub ? pub.getTime() : 0,
-      interest: r[c['興味度']] === '' ? 0 : Number(r[c['興味度']]) || 0,
-      importance: r[c['重要度']] === '' ? 0 : Number(r[c['重要度']]) || 0,
-      status: String(r[c['ステータス']] || '未読'), image: String(r[c['画像']] || ''),
-      words: String(r[c['当たった興味ワード']] || ''), author: String(r[c['書き手']] || ''),
-      about: intros[String(r[c['ソース']] || '')] || '',
-      pinned: String(r[c['追加元']] || '') === '手で追加',
-      kind: freshKind_(String(r[c['タイトル']] || ''), String(r[c['ソース']] || '')),
-      judged: r[c['評価日時']] instanceof Date ? r[c['評価日時']].getTime() : (r[c['取得日時']] instanceof Date ? r[c['取得日時']].getTime() : 0)
-    };
-  });
+  var all = readArticles_(book);
+  if (!all.length) return { name: name, items: [], counts: { new: 0, later: 0 } };
+  var people = authorStats_(all, readAuthorSheet_(book));
+  all.forEach(function (a) { a.about = intros[a.source] || ''; });
   var rep = reputation_(all);
   var isNew = function (a) { return a.status === '未読' || a.status === ''; };
-  var items;
+  var items, suggest = null;
   if (view === 'later') {
     items = all.filter(function (a) { return a.status === 'あとで読む'; }).sort(function (a, b) { return b.published - a.published; });
   } else if (view === 'rated') {
     items = all.filter(function (a) { return a.interest || a.importance; }).reverse();
   } else {
     all.forEach(function (a) { a.stale = isStale_(a.kind, a.published); });
-    items = all.filter(isNew).sort(function (a, b) { return (a.stale - b.stale) || (b.score - a.score) || (b.published - a.published); });
+    items = applyAuthorFlags_(all.filter(isNew), people).sort(function (a, b) {
+      return (a.stale - b.stale) || ((b.flag === '注目') - (a.flag === '注目')) || (b.score - a.score) || (b.published - a.published);
+    });
+    suggest = suggestion_(people);
   }
+  var newCount = view === 'new' || !view ? items.length : applyAuthorFlags_(all.filter(isNew), people).length;
   items = items.slice(0, MOBILE_LIMIT);
   items.forEach(function (a) {
     a.src = rep['媒体:' + a.source] || null;
-    a.who = a.author && a.author !== a.source ? (rep['人:' + a.author] || null) : null;
+    var p = a.person && people[a.person];
+    var s = p && p.ch[a.ch];
+    // 人のバッジは「その人×この経路」の数字（落合さんの記事とYouTubeを分けて見る）
+    a.who = a.author && a.author !== a.source && s ? { plus: s.plus, minus: s.minus, rp: s.rp, rm: s.rm, score: s.score, trend: s.trend } : null;
+    a.pkey = a.person ? a.person + '|' + a.ch : '';
   });
   return {
     name: name,
     items: items,
-    counts: { new: all.filter(isNew).length, later: all.filter(function (a) { return a.status === 'あとで読む'; }).length }
+    suggest: suggest,
+    counts: { new: newCount, later: all.filter(function (a) { return a.status === 'あとで読む'; }).length }
   };
 }
 
@@ -1491,6 +1489,317 @@ function apiTriage(user, row, id, status, interest) {
     if (interest !== null && interest !== undefined) sh.getRange(row, c['興味度'] + 1).setValue(interest === '' ? '' : Number(interest));
     sh.getRange(row, c['評価日時'] + 1).setValue(new Date());
   } finally {
+    lock.releaseLock();
+  }
+  return true;
+}
+
+// ===== 著者（人×受け取り方） =====
+/**
+ * 著者を「人×経路（記事／まとめ経由／YouTube／X）」で数える。2026-11-01 北原さんの提案OKで追加。
+ * - 経路は URL から自動で判定（channelOf_）。人は 書き手、YouTube はチャンネル名、X は投稿者。
+ * - 表記ゆれは 著者 シートの「別名」でまとめる。
+ * - フラグ（注目／ふつう／量を絞る／ミュート）は経路ごと。新着の並びと朝のメールに効く。
+ * - 条件を満たすと新着の先頭に「提案カード」を出し、スワイプ一回で決めてもらう（勝手には止めない）。
+ * - 見方（自動）は数字から文を組む型。手書きの見方があればそちらを優先。
+ */
+var CHANNELS = ['記事', 'まとめ経由', 'YouTube', 'X'];
+var AUTHOR_FLAGS = ['注目', 'ふつう', '量を絞る', 'ミュート'];
+var DIGEST_HOSTS = /newspicks\.com|b\.hatena\.ne\.jp|gunosy\.com|smartnews\.com|news\.yahoo\.co\.jp|news\.livedoor\.com|antenna\.jp|news\.google\.com/;
+var SUGGEST = { muteRun: 3, focusRun: 3, throttleMin: 10, throttleRate: 0.2, snoozeDays: 30, recentDays: 14 };
+
+function channelOf_(link) {
+  var u = String(link || '');
+  if (/youtube\.com|youtu\.be/.test(u)) return 'YouTube';
+  if (/(^|\/\/|\.)(x|twitter)\.com\//.test(u)) return 'X';
+  if (DIGEST_HOSTS.test(u)) return 'まとめ経由';
+  return '記事';
+}
+function normName_(s) {
+  return String(s || '').replace(/【[^】]*】|\[[^\]]*\]/g, '').replace(/[\s　・\-−ー_]/g, '').toLowerCase();
+}
+/** 記事 1 行の「人」。いなければ ''。 */
+function personOf_(a, ch, alias) {
+  var raw = ch === 'YouTube' ? a.source : (a.author && a.author !== a.source ? a.author : '');
+  raw = String(raw || '').trim();
+  if (!raw) return '';
+  return alias[normName_(raw)] || raw;
+}
+
+/** 著者シートを読む: 別名→名前、名前→{flags, manual, snooze, aliases} */
+function readAuthorSheet_(book) {
+  var sh = book.getSheetByName(SHEETS.AUTHORS);
+  var out = { alias: {}, people: {} };
+  if (!sh || sh.getLastRow() < 2) return out;
+  var H = HEADERS.AUTHORS;
+  var rows = sh.getRange(2, 1, sh.getLastRow() - 1, H.length).getValues();
+  rows.forEach(function (r, i) {
+    var name = String(r[H.indexOf('名前')] || '').trim();
+    if (!name) return;
+    var p = { row: i + 2, name: name, manual: String(r[H.indexOf('見方（手書き）')] || ''), flags: {}, snooze: {},
+      aliases: String(r[H.indexOf('別名')] || '').split(/[,、]/).map(function (x) { return x.trim(); }).filter(String) };
+    CHANNELS.forEach(function (ch) { p.flags[ch] = String(r[H.indexOf('フラグ ' + ch)] || ''); });
+    String(r[H.indexOf('提案を保留')] || '').split(';').forEach(function (kv) {
+      var m = /^\s*([^=]+)=(\d{4}-\d{2}-\d{2})/.exec(kv);
+      if (m) p.snooze[m[1].trim()] = m[2];
+    });
+    out.people[name] = p;
+    out.alias[normName_(name)] = name;
+    p.aliases.forEach(function (al) { out.alias[normName_(al)] = name; });
+  });
+  return out;
+}
+
+/** 記事シートを読んで、画面と集計の両方で使う形にする。 */
+function readArticles_(book) {
+  var sh = book.getSheetByName(SHEETS.ARTICLES);
+  if (!sh || sh.getLastRow() < 2) return [];
+  var c = articleCols_();
+  var values = sh.getRange(2, 1, sh.getLastRow() - 1, HEADERS.ARTICLES.length).getValues();
+  return values.map(function (r, i) {
+    var pub = r[c['公開日時']] instanceof Date ? r[c['公開日時']] : (r[c['取得日時']] instanceof Date ? r[c['取得日時']] : null);
+    var got = r[c['取得日時']] instanceof Date ? r[c['取得日時']].getTime() : 0;
+    return {
+      row: i + 2, id: String(r[c['ID']]), title: String(r[c['タイトル']] || ''), source: String(r[c['ソース']] || ''),
+      link: String(r[c['URL']] || ''), summary: String(r[c['AI要約']] || r[c['概要']] || '').slice(0, 220),
+      tags: String(r[c['タグ']] || ''), score: Number(r[c['関連度']]) || 0, published: pub ? pub.getTime() : 0,
+      interest: r[c['興味度']] === '' ? 0 : Number(r[c['興味度']]) || 0,
+      importance: r[c['重要度']] === '' ? 0 : Number(r[c['重要度']]) || 0,
+      status: String(r[c['ステータス']] || '未読'), image: String(r[c['画像']] || ''),
+      words: String(r[c['当たった興味ワード']] || ''), author: String(r[c['書き手']] || ''),
+      pinned: String(r[c['追加元']] || '') === '手で追加',
+      kind: freshKind_(String(r[c['タイトル']] || ''), String(r[c['ソース']] || '')),
+      got: got,
+      judged: r[c['評価日時']] instanceof Date ? r[c['評価日時']].getTime() : got
+    };
+  });
+}
+
+/** 人×経路の集計。all は readArticles_ の結果（ch・person を付ける）。 */
+function authorStats_(all, sheet) {
+  var now = Date.now(), recent = now - SUGGEST.recentDays * 864e5;
+  var people = {};
+  all.forEach(function (a) {
+    a.ch = channelOf_(a.link);
+    a.person = personOf_(a, a.ch, sheet.alias);
+    if (!a.person) return;
+    var p = people[a.person] || (people[a.person] = { name: a.person, ch: {}, evidence: [], pos: {}, neg: {}, pinned: false, last: 0 });
+    var s = p.ch[a.ch] || (p.ch[a.ch] = { n: 0, plus: 0, minus: 0, rp: 0, rm: 0, rn: 0, months: {}, seq: [] });
+    var ym = Utilities.formatDate(new Date(a.got || a.published || now), 'Asia/Tokyo', 'yyyy-MM');
+    var mo = s.months[ym] || (s.months[ym] = { p: 0, m: 0, n: 0 });
+    s.n++; mo.n++;
+    if (a.got >= recent) s.rn++;
+    if (a.pinned) p.pinned = true;
+    var sign = judge_(a);
+    if (!sign) return;
+    var isRecent = a.judged >= recent;
+    if (sign > 0) { s.plus++; mo.p++; if (isRecent) s.rp++; } else { s.minus++; mo.m++; if (isRecent) s.rm++; }
+    s.seq.push({ t: a.judged, s: sign });
+    if (a.judged > p.last) p.last = a.judged;
+    a.tags.split(',').map(function (t) { return t.trim(); }).filter(function (t) { return t && !/^注目の/.test(t); })
+      .forEach(function (t) { var box = sign > 0 ? p.pos : p.neg; box[t] = (box[t] || 0) + 1; });
+    if (sign > 0) p.evidence.push({ title: a.title, link: a.link, ch: a.ch, t: a.judged });
+  });
+  Object.keys(people).forEach(function (k) {
+    var p = people[k];
+    p.evidence.sort(function (x, y) { return y.t - x.t; }); p.evidence = p.evidence.slice(0, 3);
+    CHANNELS.forEach(function (ch) {
+      var s = p.ch[ch]; if (!s) return;
+      s.seq.sort(function (x, y) { return x.t - y.t; });
+      var rate = function (pp, mm) { return pp + mm ? (pp - mm) / (pp + mm) : null; };
+      var nowR = rate(s.rp, s.rm), before = rate(s.plus - s.rp, s.minus - s.rm), allR = rate(s.plus, s.minus);
+      s.score = allR === null ? 0 : Math.round(allR * 100) / 100;
+      s.hasBefore = before !== null;
+      s.trend = nowR === null ? 'flat' : before === null ? (nowR > 0 ? 'up' : nowR < 0 ? 'down' : 'flat')
+        : (nowR - before > 0.2 ? 'up' : nowR - before < -0.2 ? 'down' : 'flat');
+    });
+    var top = function (box, other) {
+      return Object.keys(box).filter(function (t) { return box[t] > (other[t] || 0); })
+        .sort(function (x, y) { return box[y] - box[x]; }).slice(0, 3);
+    };
+    p.likes = top(p.pos, p.neg); p.dislikes = top(p.neg, p.pos);
+    var info = sheet.people[k];
+    p.flags = info ? info.flags : {};
+    p.manual = info ? info.manual : '';
+    p.aliases = info ? info.aliases : [];
+    p.snooze = info ? info.snooze : {};
+    p.auto = autoView_(p);
+  });
+  return people;
+}
+
+/** 数字から見方の文を組む（費用ゼロ）。 */
+function autoView_(p) {
+  var parts = [];
+  var judgedAll = 0;
+  CHANNELS.forEach(function (ch) {
+    var s = p.ch[ch]; if (!s) return;
+    var j = s.plus + s.minus; judgedAll += j;
+    if (!j) { if (s.n >= 5) parts.push(ch + 'は' + s.n + '本出ているが未判定'); return; }
+    var hit = s.plus / j;
+    var word = j < 3 ? '判定はまだ少ない' : hit >= 0.6 ? 'よく刺さる' : hit >= 0.3 ? 'ときどき刺さる' : '刺さらない';
+    var tr = !s.hasBefore ? '' : s.trend === 'up' ? '・最近上向き' : s.trend === 'down' ? '・最近下向き' : '';
+    parts.push(ch + (j < 3 ? 'の' : 'は') + word + '（' + j + '本中' + s.plus + '本が刺さった' + tr + '）');
+    if (s.rn >= SUGGEST.throttleMin && s.rp / s.rn < SUGGEST.throttleRate) parts.push(ch + 'は量のわりに当たりが少ない（2週間で' + s.rn + '本）');
+  });
+  if (!judgedAll && !parts.length) return 'まだ判定がありません';
+  var t = parts.join('。') + '。';
+  if (p.likes.length) t += '刺さるテーマ: ' + p.likes.join('・') + '。';
+  if (p.dislikes.length) t += '刺さらないテーマ: ' + p.dislikes.join('・') + '。';
+  if (p.pinned) t += '自分でURLを貼ったことがある。';
+  return t;
+}
+
+/** 提案カード。1つだけ返す（ミュート＞量を絞る＞注目の順）。 */
+function suggestion_(people) {
+  var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+  var cutoff = Utilities.formatDate(new Date(Date.now() - SUGGEST.snoozeDays * 864e5), 'Asia/Tokyo', 'yyyy-MM-dd');
+  var best = null, rank = { 'ミュート': 3, '量を絞る': 2, '注目': 1 };
+  Object.keys(people).forEach(function (k) {
+    var p = people[k];
+    CHANNELS.forEach(function (ch) {
+      var s = p.ch[ch]; if (!s) return;
+      var flag = p.flags[ch] || 'ふつう';
+      if (p.snooze[ch] && p.snooze[ch] > cutoff) return;
+      var last = s.seq.slice(-Math.max(SUGGEST.muteRun, SUGGEST.focusRun));
+      var tail = function (n, sign) { var x = s.seq.slice(-n); return x.length === n && x.every(function (e) { return e.s === sign; }); };
+      var cand = null;
+      if (flag !== 'ミュート' && tail(SUGGEST.muteRun, -1)) {
+        cand = { type: 'ミュート', reason: p.name + 'の' + ch + 'を' + SUGGEST.muteRun + '回続けて興味なしにしました。' + ch + 'だけミュートしますか？' + otherChannels_(p, ch) };
+      } else if (flag === 'ふつう' && s.rn >= SUGGEST.throttleMin && s.rp / s.rn < SUGGEST.throttleRate) {
+        cand = { type: '量を絞る', reason: p.name + 'の' + ch + 'は2週間で' + s.rn + '本出て、刺さったのは' + s.rp + '本です。1日1本に絞りますか？' };
+      } else if (flag !== '注目' && flag !== 'ミュート' && tail(SUGGEST.focusRun, 1)) {
+        cand = { type: '注目', reason: p.name + 'の' + ch + 'が' + SUGGEST.focusRun + '回続けて刺さりました。注目にして上に出しますか？' };
+      }
+      if (cand && (!best || rank[cand.type] > rank[best.type])) { cand.person = p.name; cand.ch = ch; best = cand; }
+      void last; void today;
+    });
+  });
+  return best;
+}
+function otherChannels_(p, ch) {
+  var good = CHANNELS.filter(function (c) { return c !== ch && p.ch[c] && p.ch[c].plus > p.ch[c].minus; });
+  return good.length ? good.join('・') + 'はそのままです。' : '';
+}
+
+/** 新着に フラグ を当てる: ミュートを外し、量を絞るは1日1本、注目は上へ。 */
+function applyAuthorFlags_(items, people) {
+  var seen = {};
+  return items.filter(function (a) {
+    var p = a.person && people[a.person];
+    var flag = p ? (p.flags[a.ch] || 'ふつう') : 'ふつう';
+    a.flag = flag;
+    if (flag === 'ミュート') return false;
+    if (flag === '量を絞る') {
+      var key = a.person + '|' + a.ch + '|' + Utilities.formatDate(new Date(a.got || a.published || Date.now()), 'Asia/Tokyo', 'yyyy-MM-dd');
+      if (seen[key]) return false;
+      seen[key] = true;
+    }
+    return true;
+  });
+}
+
+/** 著者シートを書き直す（手で書く列は残す）。毎日の取得と月曜の学習のあとに呼ぶ。 */
+function rebuildAuthors_() {
+  var sh = Store.sheet(SHEETS.AUTHORS);
+  if (!sh) return;
+  var book = sh.getParent();
+  var sheet = readAuthorSheet_(book);
+  var people = authorStats_(readArticles_(book), sheet);
+  var H = HEADERS.AUTHORS;
+  var names = Object.keys(people).filter(function (k) {
+    var p = people[k];
+    var judged = CHANNELS.some(function (ch) { return p.ch[ch] && (p.ch[ch].plus + p.ch[ch].minus); });
+    var many = CHANNELS.some(function (ch) { return p.ch[ch] && p.ch[ch].n >= 5; });
+    return judged || many || p.pinned || sheet.people[k];
+  });
+  Object.keys(sheet.people).forEach(function (k) { if (names.indexOf(k) === -1) names.push(k); });
+  var cell = function (s) { return s ? (s.plus + s.minus ? '+' + s.plus + ' −' + s.minus + ' ' + (s.trend === 'up' ? '↗' : s.trend === 'down' ? '↘' : '→') : '') + '（' + s.n + '本）' : ''; };
+  var stamp = new Date();
+  var rows = names.map(function (k) {
+    var p = people[k] || { ch: {}, likes: [], dislikes: [], auto: 'まだ判定がありません', last: 0 };
+    var old = sheet.people[k];
+    var snoozeText = old ? Object.keys(old.snooze).map(function (ch) { return ch + '=' + old.snooze[ch]; }).join(';') : '';
+    return H.map(function (h) {
+      switch (h) {
+        case '名前': return k;
+        case '別名': return old ? old.aliases.join('、') : '';
+        case '見方（手書き）': return old ? old.manual : '';
+        case '提案を保留': return snoozeText;
+        case '見方（自動）': return p.auto;
+        case '刺さるテーマ': return p.likes.join('・');
+        case '刺さらないテーマ': return p.dislikes.join('・');
+        case '最終判定': return p.last ? new Date(p.last) : '';
+        case '更新': return stamp;
+        default:
+          if (/^フラグ /.test(h)) return old ? old.flags[h.slice(4)] || '' : '';
+          if (CHANNELS.indexOf(h) !== -1) return cell(p.ch[h]);
+          return '';
+      }
+    });
+  });
+  rows.sort(function (x, y) { return (y[H.indexOf('最終判定')] || 0) - (x[H.indexOf('最終判定')] || 0); });
+  if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, H.length).clearContent();
+  if (rows.length) sh.getRange(2, 1, rows.length, H.length).setValues(rows);
+  // フラグ列はプルダウンにする
+  var rule = SpreadsheetApp.newDataValidation().requireValueInList(AUTHOR_FLAGS, true).setAllowInvalid(true).build();
+  CHANNELS.forEach(function (ch) { sh.getRange(2, H.indexOf('フラグ ' + ch) + 1, Math.max(rows.length, 1), 1).setDataValidation(rule); });
+}
+
+/** 画面の 著者 タブ。最近ハマっている順。 */
+function apiAuthors(user) {
+  var book = mobileBook_(user);
+  var people = authorStats_(readArticles_(book), readAuthorSheet_(book));
+  var months = [];
+  for (var i = 5; i >= 0; i--) {
+    var d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i);
+    months.push(Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM'));
+  }
+  var list = Object.keys(people).map(function (k) {
+    var p = people[k];
+    var heat = 0, judged = 0, shown = 0;
+    var ch = {};
+    CHANNELS.forEach(function (c) {
+      var s = p.ch[c]; if (!s) return;
+      heat += s.rp * 2 - s.rm + (s.plus - s.minus) * 0.3; judged += s.plus + s.minus; shown += s.n;
+      ch[c] = { n: s.n, plus: s.plus, minus: s.minus, rn: s.rn, rp: s.rp, trend: s.trend, score: s.score,
+        months: months.map(function (m) { return s.months[m] || { p: 0, m: 0, n: 0 }; }) };
+    });
+    if ((p.flags && CHANNELS.some(function (c) { return p.flags[c] === '注目'; })) || p.pinned) heat += 3;
+    return { name: k, view: p.manual || p.auto, auto: p.auto, manual: p.manual, flags: p.flags, aliases: p.aliases,
+      likes: p.likes, dislikes: p.dislikes, evidence: p.evidence, ch: ch, heat: heat, judged: judged, shown: shown, pinned: p.pinned };
+  }).filter(function (x) { return x.judged || x.pinned || x.shown >= 5 || CHANNELS.some(function (c) { return x.flags[c] && x.flags[c] !== 'ふつう'; }); })
+    .sort(function (a, b) { return (b.heat - a.heat) || (b.judged - a.judged) || (b.shown - a.shown); });
+  return { months: months, channels: CHANNELS, flags: AUTHOR_FLAGS, items: list.slice(0, 80) };
+}
+
+/** 著者の設定を変える。field: flag（value=フラグ, ch 必須）/ snooze（ch 必須）/ manual / aliases */
+function apiSetAuthor(user, name, field, value, ch) {
+  name = String(name || '').trim();
+  if (!name) throw new Error('名前がありません');
+  if ((field === 'flag' || field === 'snooze') && CHANNELS.indexOf(ch) === -1) throw new Error('経路が違います');
+  if (field === 'flag' && AUTHOR_FLAGS.indexOf(value) === -1) throw new Error('フラグの値が違います');
+  var book = mobileBook_(user);
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    Store.use(book);
+    Store.ensureSchema();
+    var sh = Store.sheet(SHEETS.AUTHORS);
+    var H = HEADERS.AUTHORS;
+    var info = readAuthorSheet_(book).people[name];
+    var row = info ? info.row : sh.getLastRow() + 1;
+    if (!info) sh.getRange(row, H.indexOf('名前') + 1).setValue(name);
+    if (field === 'flag') sh.getRange(row, H.indexOf('フラグ ' + ch) + 1).setValue(value);
+    else if (field === 'manual') sh.getRange(row, H.indexOf('見方（手書き）') + 1).setValue(String(value || '').slice(0, 500));
+    else if (field === 'aliases') sh.getRange(row, H.indexOf('別名') + 1).setValue(String(value || '').slice(0, 300));
+    else if (field === 'snooze') {
+      var snooze = info ? info.snooze : {};
+      snooze[ch] = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+      sh.getRange(row, H.indexOf('提案を保留') + 1).setValue(Object.keys(snooze).map(function (k) { return k + '=' + snooze[k]; }).join(';'));
+    } else throw new Error('変えられない項目です');
+  } finally {
+    Store.use(null);
     lock.releaseLock();
   }
   return true;
@@ -1669,8 +1978,13 @@ function sendMorningMail_() {
   if (!sh || sh.getLastRow() < 2) return;
   var c = articleCols_();
   var since = Date.now() - 2 * 24 * 3600 * 1000;
+  var book = sh.getParent();
+  var keep = {};
+  var all = readArticles_(book);
+  applyAuthorFlags_(all, authorStats_(all, readAuthorSheet_(book))).forEach(function (a) { keep[a.id] = true; });
   var top = sh.getRange(2, 1, sh.getLastRow() - 1, HEADERS.ARTICLES.length).getValues()
     .filter(function (r) {
+      if (!keep[String(r[c['ID']])]) return false;  // ミュート・量を絞る を当てる
       var got = r[c['取得日時']];
       var pub = r[c['公開日時']] instanceof Date ? r[c['公開日時']].getTime() : 0;
       if (isStale_(freshKind_(String(r[c['タイトル']] || ''), String(r[c['ソース']] || '')), pub)) return false;
