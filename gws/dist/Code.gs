@@ -1499,7 +1499,7 @@ function apiTriage(user, row, id, status, interest) {
 // ===== 手で貼ったURL =====
 /**
  * スマホで貼った記事・YouTube のURLを取り込む。「自分の目でホットだと思った」印として:
- *  1. 記事を 興味5・重要5・あとで読む で記事シートに入れる（すでにあれば印だけ付け直す）
+ *  1. 記事を 興味5・重要5・完了（本人が読んでから貼る想定）で記事シートに入れる（すでにあれば印だけ付け直す）
  *  2. 書き手と発信元を 興味キーワード に「注目の人」「注目の媒体」（由来 手で追加・重み5）として足す
  *     → 以後その人・媒体の記事は関連度が上がる
  *  3. 発信元の RSS（YouTube はチャンネルのフィード）が見つかればフィードに足す
@@ -1612,7 +1612,7 @@ function pinArticle_(info) {
     for (var i = 0; i < ids.length; i++) {
       if (String(ids[i][0]) !== id) continue;
       var row = i + 2;
-      sh.getRange(row, c['興味度'] + 1, 1, 3).setValues([[PIN_WEIGHT, PIN_WEIGHT, 'あとで読む']]);
+      sh.getRange(row, c['興味度'] + 1, 1, 3).setValues([[PIN_WEIGHT, PIN_WEIGHT, '完了']]);
       sh.getRange(row, c['評価日時'] + 1, 1, 2).setValues([[now, '手で追加']]);
       return { existed: true };
     }
@@ -1624,7 +1624,7 @@ function pinArticle_(info) {
     return {
       'ID': id, '取得日時': now, '公開日時': pub, 'ソース': info.source, 'タイトル': info.title, 'URL': info.url,
       '概要': info.summary, 'タグ': k.tags.join(', '), '関連度': Math.max(k.score, PIN_WEIGHT), 'AI要約': '',
-      '興味度': PIN_WEIGHT, '重要度': PIN_WEIGHT, 'ステータス': 'あとで読む', '画像': info.image,
+      '興味度': PIN_WEIGHT, '重要度': PIN_WEIGHT, 'ステータス': '完了', '画像': info.image,
       '当たった興味ワード': k.words.join('・'), '書き手': info.author, '評価日時': now, '追加元': '手で追加'
     }[h];
   }).map(function (v) { return v === undefined ? '' : v; });
