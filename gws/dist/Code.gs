@@ -270,7 +270,7 @@ var HEADERS = {
   PROFILE: ['項目', '値', '説明'],
   FEEDS: ['有効', '名前', 'URL', 'カテゴリ', '重み', '最終取得', '状態', '紹介'],
   ARTICLES: ['ID', '取得日時', '公開日時', 'ソース', 'タイトル', 'URL', '概要', 'タグ', '関連度',
-    'AI要約', '興味度', '重要度', 'ステータス', '画像', '当たった興味ワード', '書き手', '評価日時', '追加元', '原題'],
+    'AI要約', '興味度', '重要度', 'ステータス', '画像', '当たった興味ワード', '書き手', '評価日時', '追加元', '原題', '鍵'],
   KEYWORDS: ['キーワード', '重み', '分類', '由来'],
   AUTHORS: ['名前', '別名', '見方（手書き）', 'フラグ 記事', 'フラグ まとめ経由', 'フラグ YouTube', 'フラグ X', '提案を保留',
     '見方（自動）', '記事', 'まとめ経由', 'YouTube', 'X', '刺さるテーマ', '刺さらないテーマ', '最終判定', '更新'],
@@ -293,7 +293,8 @@ var DEFAULT_SETTINGS = [
   ['取得しないサイト', 'note.com', 'URLにこの文字を含むフィードは止める。複数は「,」で区切る（2026-11-01 北原さん: noteは取得しない）'],
   ['おすすめフィードの版', 0, '自動で入れた「おすすめフィード」の版。手で変えない'],
   ['日本語に訳す', 'オン', 'オン / オフ。英語などの記事の見出しと概要を日本語に訳して保存する（元の見出しは「原題」列）。Apps Script の翻訳を使う（無料）'],
-  ['ショート動画を外す', 'オン', 'オン / オフ。YouTube のショート動画を保存しない・新着に出さない（2026-11-08 北原さん）']
+  ['ショート動画を外す', 'オン', 'オン / オフ。YouTube のショート動画を保存しない・新着に出さない（2026-11-08 北原さん）'],
+  ['会員限定とみなすサイト', 'nikkei.com', 'このサイトの記事は会員登録しないと中身が読めないとみなし、🔒を付けて新着とメールの下へ回す（消さない）。複数は「,」で区切る（2026-11-08 北原さん）']
 ];
 
 // 1人1冊。このブックが誰のものかを書いておく。
@@ -1432,6 +1433,7 @@ function apiArticles(user, view) {
   var all = readArticles_(book).filter(function (a) { return !(hideShorts && a.short); });
   if (!all.length) return { name: name, items: [], counts: { new: 0, later: 0 } };
   var people = authorStats_(all, readAuthorSheet_(book), readViews_(book));
+  applyLocks_(all, st);
   all.forEach(function (a) { a.about = intros[a.source] || ''; });
   var rep = reputation_(all);
   var isNew = function (a) { return a.status === '未読' || a.status === ''; };
@@ -1443,7 +1445,8 @@ function apiArticles(user, view) {
   } else {
     all.forEach(function (a) { a.stale = isStale_(a.kind, a.published); });
     items = applyAuthorFlags_(all.filter(isNew), people).sort(function (a, b) {
-      return (a.stale - b.stale) || ((b.flag === '注目') - (a.flag === '注目')) || (b.score - a.score) || (b.published - a.published);
+      // 🔒（会員限定・読めない）は消さずに、読める記事の下へ回す
+      return (a.stale - b.stale) || ((b.flag === '注目') - (a.flag === '注目')) || (a.locked - b.locked) || (b.score - a.score) || (b.published - a.published);
     });
     suggest = suggestion_(people);
   }
@@ -1488,6 +1491,40 @@ function freshKind_(title, source) {
 function isStale_(kind, publishedMs) {
   return kind === 'news' && publishedMs > 0 && Date.now() - publishedMs > NEWS_STALE_DAYS * 24 * 3600 * 1000;
 }
+/**
+ * 会員登録・有料会員にならないと中身が読めない記事（2026-11-08 北原さん）。
+ * 消さずに 🔒 を付け、新着とメールで下へ回す。興味の記録（話題・書き手・媒体のプラス・マイナス）には入れず、
+ * 「読めた／読めない」は 記事 シートの「鍵」列に別に残す（judge_ は鍵を見ない）。
+ * 見分け方: 見出し・概要の文言 / 設定「会員限定とみなすサイト」/ その媒体で「読めない」が LOCK_LEARN_MIN 件以上かつ「読めた」より多い。
+ */
+var LOCK_WORDS = /会員限定|有料会員|無料会員登録|会員登録(を|して|すると|で)|ログインして(続き|全文)|続きを読むには|プレミアム会員|有料プラン/;
+var LOCK_MARKS = ['読めた', '読めない'];
+var LOCK_LEARN_MIN = 2;
+function lockHosts_(settings) {
+  return String(settings['会員限定とみなすサイト'] || '').split(/[,、\s]+/).map(function (x) { return x.trim().toLowerCase(); }).filter(String);
+}
+/** all（readArticles_ の結果）に lock（'会員限定' / '読めない' / '読めた' / ''）と locked を付け、媒体ごとの数を返す。 */
+function applyLocks_(all, settings) {
+  var hosts = lockHosts_(settings || {});
+  var bySource = {};
+  all.forEach(function (a) {
+    if (LOCK_MARKS.indexOf(a.lockMark) === -1) return;
+    var o = bySource[a.source] || (bySource[a.source] = { no: 0, ok: 0 });
+    if (a.lockMark === '読めない') o.no++; else o.ok++;
+  });
+  all.forEach(function (a) {
+    var host = ((/^https?:\/\/([^\/:?#]+)/.exec(a.link) || [])[1] || '').toLowerCase();
+    var o = bySource[a.source];
+    a.lockGuess = LOCK_WORDS.test(a.title + ' ' + (a.rawSummary || '')) ||
+      hosts.some(function (x) { return host === x || host.slice(-x.length - 1) === '.' + x; }) ||
+      !!(o && o.no >= LOCK_LEARN_MIN && o.no > o.ok);
+    a.lock = LOCK_MARKS.indexOf(a.lockMark) !== -1 ? a.lockMark : (a.lockGuess ? '会員限定' : '');
+    a.locked = a.lock === '会員限定' || a.lock === '読めない';
+    delete a.rawSummary;
+  });
+  return bySource;
+}
+
 function judge_(a) {
   if (a.status === '興味なし' || (a.interest && a.interest <= 2)) return -1;
   if (a.status === 'あとで読む' || a.status === '完了' || a.interest >= 4) return 1;
@@ -1605,6 +1642,33 @@ function apiTriageBatch(user, ops) {
   return failed;
 }
 
+/**
+ * 中身が読めたか（鍵）を記事に残す。value: 読めた / 読めない / ''（取り消し）。
+ * 興味度・ステータスには触らない（興味があったことはそのまま記録に残す）。
+ */
+function apiMarkLock(user, row, id, value) {
+  if (value !== '' && LOCK_MARKS.indexOf(value) === -1) throw new Error('鍵の値が違います');
+  var book = mobileBook_(user);
+  var sh = book.getSheetByName(SHEETS.ARTICLES);
+  var c = articleCols_();
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    row = Number(row);
+    if (String(sh.getRange(row, c['ID'] + 1).getValue()) !== String(id)) {
+      var ids = sh.getRange(2, c['ID'] + 1, sh.getLastRow() - 1, 1).getValues();
+      row = 0;
+      for (var i = 0; i < ids.length; i++) if (String(ids[i][0]) === String(id)) { row = i + 2; break; }
+      if (!row) throw new Error('記事が見つかりません');
+    }
+    if (!sh.getRange(1, c['鍵'] + 1).getValue()) sh.getRange(1, c['鍵'] + 1).setValue('鍵').setFontWeight('bold');
+    sh.getRange(row, c['鍵'] + 1).setValue(value);
+  } finally {
+    lock.releaseLock();
+  }
+  return true;
+}
+
 // ===== 著者（人×受け取り方） =====
 /**
  * 著者を「人×経路（記事／まとめ経由／YouTube／X）」で数える。2026-11-01 北原さんの提案OKで追加。
@@ -1666,7 +1730,8 @@ function readArticles_(book) {
   var sh = book.getSheetByName(SHEETS.ARTICLES);
   if (!sh || sh.getLastRow() < 2) return [];
   var c = articleCols_();
-  var values = sh.getRange(2, 1, sh.getLastRow() - 1, HEADERS.ARTICLES.length).getValues();
+  // 「鍵」列を足す前のブックでも読めるよう、シートにある列までだけ読む（足りない列は空として扱う）
+  var values = sh.getRange(2, 1, sh.getLastRow() - 1, Math.min(HEADERS.ARTICLES.length, sh.getMaxColumns())).getValues();
   return values.map(function (r, i) {
     var pub = r[c['公開日時']] instanceof Date ? r[c['公開日時']] : (r[c['取得日時']] instanceof Date ? r[c['取得日時']] : null);
     var got = r[c['取得日時']] instanceof Date ? r[c['取得日時']].getTime() : 0;
@@ -1680,6 +1745,7 @@ function readArticles_(book) {
       words: String(r[c['当たった興味ワード']] || ''), author: String(r[c['書き手']] || ''),
       pinned: String(r[c['追加元']] || '') === '手で追加',
       original: String(r[c['原題']] || ''),
+      lockMark: String(r[c['鍵']] || ''), rawSummary: String(r[c['概要']] || ''),
       short: isShort_(String(r[c['URL']] || ''), String(r[c['タイトル']] || '')),
       kind: freshKind_(String(r[c['タイトル']] || ''), String(r[c['ソース']] || '')),
       got: got,
@@ -2263,6 +2329,9 @@ function sendMorningMail_() {
   var book = sh.getParent();
   var keep = {};
   var all = readArticles_(book);
+  var locked = {};
+  applyLocks_(all, settings);
+  all.forEach(function (a) { if (a.locked) locked[a.id] = true; });
   applyAuthorFlags_(all, authorStats_(all, readAuthorSheet_(book))).forEach(function (a) { keep[a.id] = true; });
   var top = sh.getRange(2, 1, sh.getLastRow() - 1, HEADERS.ARTICLES.length).getValues()
     .filter(function (r) {
@@ -2272,7 +2341,10 @@ function sendMorningMail_() {
       if (isStale_(freshKind_(String(r[c['タイトル']] || ''), String(r[c['ソース']] || '')), pub)) return false;
       return (r[c['ステータス']] === '未読' || r[c['ステータス']] === '') && got instanceof Date && got.getTime() >= since;
     })
-    .sort(function (a, b) { return (Number(b[c['関連度']]) || 0) - (Number(a[c['関連度']]) || 0); })
+    // 🔒（会員限定・読めない）は読める記事の下へ
+    .sort(function (a, b) {
+      return ((locked[String(a[c['ID']])] ? 1 : 0) - (locked[String(b[c['ID']])] ? 1 : 0)) || (Number(b[c['関連度']]) || 0) - (Number(a[c['関連度']]) || 0);
+    })
     .slice(0, 10);
   if (!top.length) return;
   var to = Session.getEffectiveUser().getEmail();
@@ -2285,9 +2357,10 @@ function sendMorningMail_() {
     '<p>' + esc(name) + ' さん、今朝の注目記事です（関連度の高い順）。</p><ol>'];
   var text = [name + ' さん、今朝の注目記事です（関連度の高い順）。', ''];
   top.forEach(function (r) {
-    html.push('<li style="margin-bottom:10px"><a href="' + esc(r[c['URL']]) + '">' + esc(r[c['タイトル']]) + '</a><br>' +
+    var lk = locked[String(r[c['ID']])] ? '🔒 ' : '';
+    html.push('<li style="margin-bottom:10px">' + lk + '<a href="' + esc(r[c['URL']]) + '">' + esc(r[c['タイトル']]) + '</a><br>' +
       '<span style="color:#666;font-size:12px">' + esc(r[c['ソース']]) + '・' + esc(r[c['当たった興味ワード']] || r[c['タグ']] || '興味ワードなし') + '</span></li>');
-    text.push('・' + r[c['タイトル']] + '\n  ' + r[c['URL']]);
+    text.push('・' + lk + r[c['タイトル']] + '\n  ' + r[c['URL']]);
   });
   html.push('</ol>');
   if (url) {

@@ -81,6 +81,10 @@ main{padding:12px 16px;display:grid;gap:12px;max-width:720px;margin:0 auto}
 #addGo{height:40px;border:0;border-radius:10px;background:var(--accent);color:#fff;font:inherit;font-weight:700;padding:0 16px}
 #addGo:disabled{opacity:.5}
 .pin{font-size:11px;border-radius:6px;padding:0 6px;line-height:20px;background:var(--accent);color:#fff}
+.lock{font-size:11px;border-radius:6px;padding:0 6px;line-height:20px;background:var(--line);color:var(--ink);white-space:nowrap}
+.lockrow{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;color:var(--sub)}
+.lockrow button{height:28px;border:1px solid var(--line);border-radius:8px;background:none;color:var(--sub);font:inherit;font-size:12px;padding:0 10px;cursor:pointer}
+.lockrow button.on{color:var(--ink);border-color:currentColor;font-weight:700}
 .suggest .card{border:2px solid var(--accent)}
 .dot{color:var(--accent);font-size:10px;vertical-align:super}
 .sg-head{font-size:12px;font-weight:700;color:var(--accent)}
@@ -225,6 +229,7 @@ function cardHtml(a){
       (a.author && a.author !== a.source ? '<div class="by">' + esc(a.author) + ' ' + repBadge(a.who, '人') + '</div>' : '') +
       (a.about ? '<div class="about">' + esc(a.about) + '</div>' : '') +
       (a.pinned ? '<span class="pin">自分で追加</span>' : '') +
+      (a.lock === '会員限定' ? '<span class="lock">🔒 会員限定かも</span>' : a.lock === '読めない' ? '<span class="lock">🔒 読めなかった</span>' : '') +
       '<a class="title" href="' + esc(a.link) + '" target="_blank" rel="noopener">' + esc(a.title) + '</a>' +
       (a.original ? '<div class="orig">原題: ' + esc(a.original) + '</div>' : '') +
       (a.summary ? '<p class="sum">' + esc(a.summary) + '</p>' : '') +
@@ -234,6 +239,11 @@ function cardHtml(a){
         '<button class="skip ' + (a.status === '興味なし' ? 'on' : '') + '" data-s="興味なし">興味なし</button>' +
         '<button class="later ' + (a.status === 'あとで読む' ? 'on' : '') + '" data-s="あとで読む">あとで読む</button>' +
         '<button class="done ' + (a.status === '完了' ? 'on' : '') + '" data-s="完了">読んだ</button>' +
+      '</div>' +
+      // 中身が読めたかは興味とは別に残す（興味の記録には入れない）
+      '<div class="lockrow">中身は' +
+        '<button class="' + (a.lockMark === '読めた' ? 'on' : '') + '" data-lk="読めた">読めた</button>' +
+        '<button class="' + (a.lockMark === '読めない' ? 'on' : '') + '" data-lk="読めない">🔒 読めない</button>' +
       '</div>' +
     '</article></div>';
 }
@@ -526,7 +536,21 @@ $('list').addEventListener('click', function(ev){
   var b = ev.target.closest('button'); if (!b) return;
   if (b.dataset.sg) { answerSuggest(b.dataset.sg === 'yes', b.dataset.sg === 'yes' ? 'right' : 'left'); return; }
   var slot = b.closest('.slot'); var a = items[find(slot.dataset.id)]; if (!a) return;
-  if (b.dataset.f) {
+  if (b.dataset.lk) {
+    var prev = a.lockMark || '';
+    var setLock = function(m){
+      a.lockMark = m;
+      a.lock = m || (a.lockGuess ? '会員限定' : '');
+      var s2 = $('list').querySelector('.slot[data-id="' + a.id.replace(/"/g, '\\"') + '"]');
+      if (s2) s2.outerHTML = cardHtml(a);
+    };
+    var mark = prev === b.dataset.lk ? '' : b.dataset.lk;  // 同じものをもう一度押すと取り消し
+    setLock(mark);
+    toast(!mark ? '取り消しました' : mark === '読めない' ? '読めなかった記事として残しました（興味の記録はそのまま）' : '読めた記事として残しました', false);
+    google.script.run.withSuccessHandler(function(){})
+      .withFailureHandler(function(e){ setLock(prev); toast('保存できませんでした: ' + e.message, false); })
+      .apiMarkLock(USER, a.row, a.id, mark);
+  } else if (b.dataset.f) {
     var key = b.dataset.f === '興味度' ? 'interest' : 'importance';
     var before = a[key], v = Number(b.dataset.v);
     var ib = a.interest;
