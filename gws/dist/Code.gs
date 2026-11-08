@@ -1910,7 +1910,8 @@ function apiAuthors(user) {
       likes: p.likes, dislikes: p.dislikes, evidence: p.evidence, ch: ch, heat: heat, judged: judged, shown: shown, pinned: p.pinned, views: views };
   }).filter(function (x) { return x.judged || x.pinned || x.shown >= 5 || (x.views && x.views.recent >= 3) || CHANNELS.some(function (c) { return x.flags[c] && x.flags[c] !== 'ふつう'; }); })
     .sort(function (a, b) { return (b.heat - a.heat) || (b.judged - a.judged) || (b.shown - a.shown); });
-  return { months: months, channels: CHANNELS, flags: AUTHOR_FLAGS, items: list.slice(0, 80) };
+  // 提案カード（ミュート・注目・フィードに足す など）は新着ではなく著者タブに出す（2026-11-08 北原さん）
+  return { months: months, channels: CHANNELS, flags: AUTHOR_FLAGS, items: list.slice(0, 80), suggest: suggestion_(people) };
 }
 
 /** 著者の設定を変える。field: flag（value=フラグ, ch 必須）/ snooze（ch 必須）/ manual / aliases */

@@ -82,6 +82,7 @@ main{padding:12px 16px;display:grid;gap:12px;max-width:720px;margin:0 auto}
 #addGo:disabled{opacity:.5}
 .pin{font-size:11px;border-radius:6px;padding:0 6px;line-height:20px;background:var(--accent);color:#fff}
 .suggest .card{border:2px solid var(--accent)}
+.dot{color:var(--accent);font-size:10px;vertical-align:super}
 .sg-head{font-size:12px;font-weight:700;color:var(--accent)}
 .sg-text{margin:6px 0 4px;font-size:15px}
 .sg-hint{font-size:11px;color:var(--sub);margin:8px 0 0}
@@ -133,7 +134,7 @@ main{padding:12px 16px;display:grid;gap:12px;max-width:720px;margin:0 auto}
     <button data-v="new" class="on">新着 <span id="cNew"></span></button>
     <button data-v="later">あとで <span id="cLater"></span></button>
     <button data-v="rated">評価済み</button>
-    <button data-v="authors">著者</button>
+    <button data-v="authors">著者 <span id="cAuth" class="dot"></span></button>
   </nav>
 </header>
 <main id="list"><div class="msg">読み込み中…</div></main>
@@ -185,6 +186,7 @@ function toast(text, withUndo){
 }
 
 function showCounts(){
+  $('cAuth').textContent = suggest ? '●' : '';
   $('cNew').textContent = counts.new ? '(' + counts.new + ')' : '';
   $('cLater').textContent = counts.later ? '(' + counts.later + ')' : '';
 }
@@ -193,7 +195,7 @@ function load(){
   $('hint').textContent = HINTS[view];
   $('list').innerHTML = '<div class="msg">読み込み中…</div>';
   if (view === 'authors') {
-    google.script.run.withSuccessHandler(function(res){ authorData = res; renderAuthors(); })
+    google.script.run.withSuccessHandler(function(res){ authorData = res; suggest = res.suggest || null; showCounts(); renderAuthors(); })
       .withFailureHandler(function(e){ $('list').innerHTML = '<div class="msg">読み込めませんでした: ' + esc(e.message) + '</div>'; })
       .apiAuthors(USER);
     return;
@@ -295,13 +297,13 @@ function refreshBadges(a){
 }
 
 function suggestHtml(){
-  if (!suggest || view !== 'new') return '';
+  if (!suggest || view !== 'authors') return '';
   var yes = suggest.type === 'ミュート' ? 'ミュートする' : suggest.type === '量を絞る' ? '1日1本にする' : suggest.type === 'フィードに足す' ? 'フィードに足す' : '注目にする';
   return '<div class="slot suggest" data-id="__suggest"><div class="under"><span class="l">' + yes + '</span><span class="r">今はしない</span></div>' +
     '<article class="card"><div class="sg-head">提案 ・ ' + esc(suggest.person) + ' × ' + esc(suggest.ch) + '</div>' +
     '<p class="sg-text">' + esc(suggest.reason) + '</p>' +
     '<div class="acts"><button data-sg="no">今はしない</button><button class="sg-yes" data-sg="yes">' + yes + '</button></div>' +
-    '<p class="sg-hint">右へスワイプ＝' + yes + '　左へ＝今はしない（30日は聞きません）</p></article></div>';
+    '<p class="sg-hint">今はしない を押すと、30日は聞きません</p></article></div>';
 }
 function answerSuggest(yes, dir){
   var sg = suggest; if (!sg) return;
@@ -309,7 +311,9 @@ function answerSuggest(yes, dir){
   removeCard('__suggest', dir);
   var feed = sg.type === 'フィードに足す';
   toast(!yes ? '30日は聞きません' : feed ? sg.person + 'をフィードに足しました（次の取得から新着に出ます）' : sg.person + '（' + sg.ch + '）を「' + sg.type + '」にしました', false);
-  var run = google.script.run.withSuccessHandler(function(){ if (yes) load(); })
+  showCounts();
+  // 著者の一覧だけ、フラグを反映するため裏で読み直す（新着は読み直さない）
+  var run = google.script.run.withSuccessHandler(function(){ if (yes && !feed && view === 'authors') load(); })
     .withFailureHandler(function(e){ toast('保存できませんでした: ' + e.message, false); });
   if (yes && feed) run.apiAddChannelFeed(USER, sg.person, sg.channelId);
   else run.apiSetAuthor(USER, sg.person, yes ? 'flag' : 'snooze', yes ? sg.type : '', sg.ch);
@@ -356,18 +360,18 @@ function renderAuthors(){
   var d = authorData;
   if (!d || !d.items.length) { $('list').innerHTML = '<div class="empty">まだ著者がいません。仕分けやURLの貼り付けを続けると出てきます</div>'; return; }
   var m = d.months.map(function(x){ return Number(x.slice(5)); });
-  $('list').innerHTML = '<div class="mhead"><span class="ach">月</span><span class="strip">' + m.map(function(x){ return '<em>' + x + '</em>'; }).join('') + '</span></div>' +
+  $('list').innerHTML = suggestHtml() + '<div class="mhead"><span class="ach">月</span><span class="strip">' + m.map(function(x){ return '<em>' + x + '</em>'; }).join('') + '</span></div>' +
     d.items.map(authorHtml).join('');
 }
 function authorOf(el){ var c = el.closest('.author'); if (!c) return null; var n = c.dataset.name; return authorData.items.filter(function(x){ return x.name === n; })[0]; }
 
 function render(){
   if (view === 'authors') return renderAuthors();
-  if (!items.length && !(suggest && view === 'new')) {
+  if (!items.length) {
     $('list').innerHTML = '<div class="empty">' + (view === 'new' ? '未読の記事はありません' : view === 'later' ? '「あとで読む」はありません' : 'まだ評価した記事はありません') + '</div>';
     return;
   }
-  $('list').innerHTML = suggestHtml() + items.map(cardHtml).join('');
+  $('list').innerHTML = items.map(cardHtml).join('');
 }
 
 function find(id){ for (var i = 0; i < items.length; i++) if (items[i].id === id) return i; return -1; }
@@ -502,6 +506,8 @@ function removeCard(id, dir){
 // ボタン（スワイプできない人・PC向け）
 $('list').addEventListener('click', function(ev){
   if (view === 'authors') {
+    var sgb = ev.target.closest('button[data-sg]');
+    if (sgb) { answerSuggest(sgb.dataset.sg === 'yes', sgb.dataset.sg === 'yes' ? 'right' : 'left'); return; }
     var x = authorOf(ev.target); if (!x) return;
     if (ev.target.closest('select,textarea,input,a')) return;
     if (ev.target.closest('[data-save]')) {
