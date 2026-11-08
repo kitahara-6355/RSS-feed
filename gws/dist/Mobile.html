@@ -47,6 +47,9 @@ main{padding:12px 16px;display:grid;gap:12px;max-width:720px;margin:0 auto}
 .score{color:var(--accent);font-weight:700}
 .card a.title{display:block;color:var(--ink);text-decoration:none;font-weight:700;font-size:16px;margin:4px 0 6px}
 .sum{font-size:14px;color:var(--sub);margin:0 0 8px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.by{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0 2px;font-size:15px;font-weight:700;color:var(--ink)}
+.by::before{content:"✍";font-weight:400;color:var(--accent)}
+.orig{font-size:12px;color:var(--sub);margin:-4px 0 6px}
 .about{font-size:12px;color:var(--sub);background:var(--accent-soft);border-radius:8px;padding:6px 8px;margin:6px 0 2px}
 .words{font-size:13px;margin-bottom:10px}
 .words b{color:var(--accent);font-weight:700}
@@ -147,11 +150,12 @@ var swiped = false;    // スワイプ直後のリンクの誤タップを止め
 // 画面ごとのスワイプ。右＝前向き、左＝興味なし。
 var SWIPE = {
   new:   { right: { status: 'あとで読む', label: 'あとで読む' }, left: { status: '興味なし', label: '興味なし' } },
-  later: { right: { status: '完了', label: '読んだ' },        left: { status: '興味なし', label: '興味なし' } }
+  // あとで: 右＝興味はあるが読まない（興味4・重要2を自動で付けて片付ける。数字を付けてあればそのまま）
+  later: { right: { status: '完了', label: '興味あり・読まない', interest: 4, importance: 2 }, left: { status: '興味なし', label: '興味なし' } }
 };
 var HINTS = {
   new: '右へスワイプ＝あとで読む　左へ＝興味なし',
-  later: '右へスワイプ＝読んだ　左へ＝興味なし',
+  later: '右へ＝興味あり・読まない（興味4・重要2が付きます）　左へ＝興味なし　自分で付けたいときは数字を押す',
   rated: 'ここでは数字を直せます',
   authors: '最近ハマっている順。色は月ごとの当たり（緑＝刺さった、赤＝外れ、灰＝見ただけ、青＝YouTubeで見た本数）'
 };
@@ -216,9 +220,11 @@ function cardHtml(a){
     (sw ? '<div class="under"><span class="l">' + sw.right.label + ' →<small>離すと決定</small></span><span class="r">← ' + sw.left.label + '<small>離すと決定</small></span></div>' : '') +
     '<article class="card">' +
       '<div class="meta"><span>' + esc(a.source) + '</span>' + repBadge(a.src, '媒体') + day(a) + (a.score ? '<span class="score">関連度 ' + a.score + '</span>' : '') + '</div>' +
-      (a.about || a.author ? '<div class="about">' + (a.author && a.author !== a.source ? esc(a.author) + ' ' + repBadge(a.who, '人') + '／' : '') + esc(a.about || '発信元の紹介はまだありません') + '</div>' : '') +
+      (a.author && a.author !== a.source ? '<div class="by">' + esc(a.author) + ' ' + repBadge(a.who, '人') + '</div>' : '') +
+      (a.about ? '<div class="about">' + esc(a.about) + '</div>' : '') +
       (a.pinned ? '<span class="pin">自分で追加</span>' : '') +
       '<a class="title" href="' + esc(a.link) + '" target="_blank" rel="noopener">' + esc(a.title) + '</a>' +
+      (a.original ? '<div class="orig">原題: ' + esc(a.original) + '</div>' : '') +
       (a.summary ? '<p class="sum">' + esc(a.summary) + '</p>' : '') +
       '<div class="words"><b>当たった興味ワード</b> ' + esc(a.words || a.tags || 'なし') + '</div>' +
       rateRow(a, '興味度', '興味') + rateRow(a, '重要度', '重要') +
@@ -281,7 +287,7 @@ function refreshBadges(a){
     var s = slotOf(b.id); if (!s) return;
     var tmp = document.createElement('div'); tmp.innerHTML = cardHtml(b);
     var fresh = tmp.firstChild;
-    ['.meta', '.about'].forEach(function(sel){
+    ['.meta', '.by'].forEach(function(sel){
       var o = s.querySelector(sel), n = fresh.querySelector(sel);
       if (o && n) o.innerHTML = n.innerHTML;
     });
@@ -381,48 +387,79 @@ function leavesView(status){
   return false;
 }
 
-/** 仕分け。画面はすぐ動かし、保存はうしろで送る。失敗したら元に戻す。 */
-function triage(a, status, dir){
-  var prevStatus = a.status, prevInterest = a.interest;
-  var interest = null;
+/** 仕分け。画面はすぐ動かし、保存はうしろで送る（続けてスワイプしても1回にまとめて送る）。 */
+function triage(a, status, dir, auto){
+  var prev = { status: a.status, interest: a.interest, importance: a.importance };
+  var interest = null, importance = null;
   if (status === '興味なし' && !a.interest) { interest = 1; }          // 学習で重みが下がるよう最低点を付ける
-  if (prevStatus === '興味なし' && status !== '興味なし' && prevInterest === 1) { interest = ''; }
-  a.status = status; if (interest !== null) a.interest = interest === '' ? 0 : interest;
-  countMove(prevStatus, status, 1);
-  rejudge(a, prevStatus, prevInterest);
+  if (prev.status === '興味なし' && status !== '興味なし' && prev.interest === 1) { interest = ''; }
+  if (auto && auto.interest && !a.interest) interest = auto.interest;
+  if (auto && auto.importance && !a.importance) importance = auto.importance;
+  a.status = status;
+  if (interest !== null) a.interest = interest === '' ? 0 : interest;
+  if (importance !== null) a.importance = importance;
+  countMove(prev.status, status, 1);
+  rejudge(a, prev.status, prev.interest);
   var index = find(a.id);
-  var label = status === '興味なし' ? '興味なしにしました' : status === 'あとで読む' ? 'あとで読むへ' : status === '完了' ? '読んだにしました' : '未読に戻しました';
-  if (leavesView(status)) { removeCard(a.id, dir); items.splice(index, 1); }
+  var label = status === '興味なし' ? '興味なしにしました'
+    : status === 'あとで読む' ? 'あとで読むへ'
+    : status === '完了' && importance !== null ? '興味あり・読まないで片付けました（興味' + a.interest + '・重要' + a.importance + '）'
+    : status === '完了' ? '読んだにしました' : '未読に戻しました';
+  var leaves = leavesView(status);
+  if (leaves) { removeCard(a.id, dir); items.splice(index, 1); }
   else { var s = slotOf(a.id); if (s) s.outerHTML = cardHtml(a); }
-  lastMove = { a: a, index: index, prevStatus: prevStatus, prevInterest: prevInterest, left: leavesView(status) };
+  lastMove = { a: a, index: index, prev: prev, left: leaves };
   toast(label, true);
-  send(a, status, interest, function(){
+  queueSave({ row: a.row, id: a.id, status: status, interest: interest, importance: importance }, function(){
+    // 保存できなかったときだけ、カードを元の場所に戻す
     var s0 = a.status, i0 = a.interest;
-    a.status = prevStatus; a.interest = prevInterest; countMove(prevStatus, status, -1); rejudge(a, s0, i0);
-    if (leavesView(status) && find(a.id) === -1) { items.splice(Math.min(index, items.length), 0, a); }
+    countMove(prev.status, a.status, -1);
+    a.status = prev.status; a.interest = prev.interest; a.importance = prev.importance; rejudge(a, s0, i0);
+    if (leaves && find(a.id) === -1) { items.splice(Math.min(index, items.length), 0, a); }
     render();
   });
 }
 
-function send(a, status, interest, onFail){
-  google.script.run.withSuccessHandler(function(){})
-    .withFailureHandler(function(e){ onFail(); toast('保存できませんでした: ' + e.message, false); })
-    .apiTriage(USER, a.row, a.id, status, interest);
+// 保存の列。送っている間に来た仕分けはためておき、終わったらまとめて1回で送る。
+// 一時的な失敗は1回だけ送り直す（画面は動かさない）。
+var saveQ = [], saving = false;
+function queueSave(op, onFail){ saveQ.push({ op: op, onFail: onFail, tries: 0 }); flushSaves(); }
+function flushSaves(){
+  if (saving || !saveQ.length) return;
+  saving = true;
+  var batch = saveQ.splice(0, saveQ.length);
+  google.script.run.withSuccessHandler(function(failed){
+    saving = false;
+    (failed || []).forEach(function(f){
+      batch.filter(function(x){ return x.op.id === f.id; }).forEach(function(x){ x.onFail && x.onFail(); });
+      toast('保存できませんでした: ' + f.reason, false);
+    });
+    flushSaves();
+  }).withFailureHandler(function(e){
+    saving = false;
+    var retry = batch.filter(function(x){ return x.tries < 1; });
+    batch.filter(function(x){ return x.tries >= 1; }).forEach(function(x){ x.onFail && x.onFail(); });
+    if (retry.length < batch.length) toast('保存できませんでした: ' + e.message, false);
+    retry.forEach(function(x){ x.tries++; });
+    saveQ = retry.concat(saveQ);
+    setTimeout(flushSaves, 1500);
+  }).apiTriageBatch(USER, batch.map(function(x){ return x.op; }));
 }
 
 function undo(){
   var m = lastMove; if (!m) return; lastMove = null;
   $('toast').classList.remove('show');
   var a = m.a, nowStatus = a.status;
-  var interest = m.prevInterest === a.interest ? null : (m.prevInterest || '');
+  var interest = m.prev.interest === a.interest ? null : (m.prev.interest || '');
+  var importance = m.prev.importance === a.importance ? null : (m.prev.importance || '');
   var i0 = a.interest;
-  a.status = m.prevStatus; a.interest = m.prevInterest;
+  a.status = m.prev.status; a.interest = m.prev.interest; a.importance = m.prev.importance;
   rejudge(a, nowStatus, i0);
-  countMove(nowStatus, m.prevStatus, 1);
+  countMove(nowStatus, m.prev.status, 1);
   if (m.left && find(a.id) === -1) items.splice(Math.min(m.index, items.length), 0, a);
   render();
   var s = slotOf(a.id); if (s) s.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  send(a, m.prevStatus, interest, function(){ load(); });
+  queueSave({ row: a.row, id: a.id, status: m.prev.status, interest: interest, importance: importance }, function(){ load(); });
 }
 $('undo').addEventListener('click', undo);
 
@@ -565,7 +602,8 @@ $('list').addEventListener('change', function(ev){
     var dir = s.dx > 0 ? 'right' : 'left';
     if (s.slot.dataset.id === '__suggest') { answerSuggest(dir === 'right', dir); return; }
     var a = items[find(s.slot.dataset.id)]; if (!a) return;
-    triage(a, SWIPE[view][dir].status, dir);
+    var conf = SWIPE[view][dir];
+    triage(a, conf.status, dir, conf);
   }
   list.addEventListener('touchend', end);
   list.addEventListener('touchcancel', function(){
