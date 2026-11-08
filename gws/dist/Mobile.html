@@ -32,10 +32,14 @@ main{padding:12px 16px;display:grid;gap:12px;max-width:720px;margin:0 auto}
 .slot{position:relative;border-radius:14px;overflow:hidden;transition:height .22s ease, margin .22s ease, opacity .22s ease}
 .under{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;padding:0 22px;
   font-weight:700;font-size:15px;color:#fff;border-radius:14px}
-.under .l,.under .r{opacity:0;transition:opacity .1s}
-.slot.toL .under{background:var(--skip)} .slot.toL .under .r{opacity:1}
-.slot.toR .under{background:var(--later)} .slot.toR .under .l{opacity:1}
+.under .l,.under .r{opacity:0;transition:opacity .1s, transform .12s}
+.slot.toL .under{background:var(--skip)} .slot.toL .under .r{opacity:.55}
+.slot.toR .under{background:var(--later)} .slot.toR .under .l{opacity:.55}
 .slot.toR.done .under{background:var(--done)}
+.under{filter:saturate(.45) brightness(1.08);transition:filter .12s}
+.slot.armed .under{filter:none}
+.slot.armed .under .l,.slot.armed .under .r{opacity:1;transform:scale(1.15)}
+.under small{display:block;font-size:11px;font-weight:400;opacity:.9}
 .card{position:relative;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;
   touch-action:pan-y;will-change:transform}
 .card.anim{transition:transform .2s ease-out}
@@ -173,7 +177,7 @@ function toast(text, withUndo){
   $('undo').style.display = withUndo ? '' : 'none';
   $('toast').classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(function(){ $('toast').classList.remove('show'); lastMove = null; }, withUndo ? 4000 : 3800);
+  toastTimer = setTimeout(function(){ $('toast').classList.remove('show'); lastMove = null; }, withUndo ? 7000 : 3800);
 }
 
 function showCounts(){
@@ -209,7 +213,7 @@ function rateRow(a, field, label){
 function cardHtml(a){
   var sw = SWIPE[view];
   return '<div class="slot' + (a.stale ? ' isStale' : '') + '" data-id="' + esc(a.id) + '">' +
-    (sw ? '<div class="under"><span class="l">' + sw.right.label + '</span><span class="r">' + sw.left.label + '</span></div>' : '') +
+    (sw ? '<div class="under"><span class="l">' + sw.right.label + ' →<small>離すと決定</small></span><span class="r">← ' + sw.left.label + '<small>離すと決定</small></span></div>' : '') +
     '<article class="card">' +
       '<div class="meta"><span>' + esc(a.source) + '</span>' + repBadge(a.src, '媒体') + day(a) + (a.score ? '<span class="score">関連度 ' + a.score + '</span>' : '') + '</div>' +
       (a.about || a.author ? '<div class="about">' + (a.author && a.author !== a.source ? esc(a.author) + ' ' + repBadge(a.who, '人') + '／' : '') + esc(a.about || '発信元の紹介はまだありません') + '</div>' : '') +
@@ -506,39 +510,53 @@ $('list').addEventListener('change', function(ev){
     .apiSetAuthor(USER, x.name, 'flag', sel.value, ch);
 });
 
-// スワイプ。縦のスクロールは邪魔しない（横に動いたと分かってから動かす）
+// スワイプ。縦のスクロールは邪魔しない（はっきり横に動いたと分かってから動かす）
+// ・ボタンやリンクの上から始めてもスワイプできる（動かしたら押したことにしない）
+// ・決まる位置を越えると色が濃くなり、文字が大きくなる（Androidは軽く振動）。戻せば取り消し
 (function(){
   var st = null;
   var list = $('list');
+  function threshold(slot){ return Math.max(72, Math.min(140, slot.offsetWidth * 0.25)); }
   list.addEventListener('touchstart', function(ev){
     if (!SWIPE[view] || ev.touches.length !== 1) return;
-    if (ev.target.closest('button')) return;
+    if (ev.target.closest('select,textarea,input')) return;
     var slot = ev.target.closest('.slot'); if (!slot) return;
     var t = ev.touches[0];
-    st = { slot: slot, card: slot.querySelector('.card'), x: t.clientX, y: t.clientY, dx: 0, mode: null, t: Date.now() };
+    st = { slot: slot, card: slot.querySelector('.card'), x: t.clientX, y: t.clientY, dx: 0, mode: null,
+           t: Date.now(), lastX: t.clientX, lastT: Date.now(), v: 0, armed: false, th: threshold(slot) };
   }, { passive: true });
   list.addEventListener('touchmove', function(ev){
     if (!st) return;
     var t = ev.touches[0], dx = t.clientX - st.x, dy = t.clientY - st.y;
     if (!st.mode) {
-      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
-      st.mode = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
+      // 斜めの指の動きはスクロール扱い。横は縦の2倍以上動いたときだけ
+      if (Math.abs(dx) < 14 && Math.abs(dy) < 10) return;
+      st.mode = Math.abs(dx) >= 14 && Math.abs(dx) > Math.abs(dy) * 2 ? 'x' : 'y';
       if (st.mode === 'x') st.card.classList.remove('anim');
+      if (st.mode === 'y') { st = null; return; }
     }
-    if (st.mode !== 'x') return;
     ev.preventDefault();
+    var now = Date.now();
+    st.v = (t.clientX - st.lastX) / Math.max(1, now - st.lastT); st.lastX = t.clientX; st.lastT = now;
     st.dx = dx;
-    st.card.style.transform = 'translateX(' + dx + 'px)';
+    st.card.style.transform = 'translateX(' + dx + 'px) rotate(' + (dx / 60) + 'deg)';
     st.slot.classList.toggle('toR', dx > 0); st.slot.classList.toggle('toL', dx < 0);
     st.slot.classList.toggle('done', view === 'later');
+    var armed = Math.abs(dx) >= st.th;
+    if (armed !== st.armed) {
+      st.armed = armed; st.slot.classList.toggle('armed', armed);
+      if (armed && navigator.vibrate) { try { navigator.vibrate(12); } catch (e) {} }
+    }
   }, { passive: false });
   function end(){
     if (!st) return;
     var s = st; st = null;
     if (s.mode !== 'x') return;
-    swiped = true; setTimeout(function(){ swiped = false; }, 400);
-    var w = s.slot.offsetWidth, speed = Math.abs(s.dx) / Math.max(1, Date.now() - s.t);
-    var go = Math.abs(s.dx) > w * 0.28 || (Math.abs(s.dx) > 40 && speed > 0.5);
+    swiped = true; setTimeout(function(){ swiped = false; }, 450);
+    // 決まる位置を越えて離す、または同じ向きに素早くはじく（戻しかけている途中は決めない）
+    var flick = Math.abs(s.dx) > 50 && Math.abs(s.v) > 0.6 && (s.v > 0) === (s.dx > 0);
+    var go = s.armed || flick;
+    s.slot.classList.remove('armed');
     if (!go) {
       s.card.classList.add('anim'); s.card.style.transform = '';
       setTimeout(function(){ s.slot.classList.remove('toL', 'toR'); }, 200);
@@ -550,9 +568,14 @@ $('list').addEventListener('change', function(ev){
     triage(a, SWIPE[view][dir].status, dir);
   }
   list.addEventListener('touchend', end);
-  list.addEventListener('touchcancel', end);
-  // リンクを押したつもりがスワイプだったときは開かない
-  list.addEventListener('click', function(ev){ if (ev.target.closest('a') && swiped) { ev.preventDefault(); swiped = false; } }, true);
+  list.addEventListener('touchcancel', function(){
+    if (!st) return; var s = st; st = null;
+    s.slot.classList.remove('armed', 'toL', 'toR'); s.card.classList.add('anim'); s.card.style.transform = '';
+  });
+  // スワイプのつもりでリンクやボタンに触れていたときは、押したことにしない
+  list.addEventListener('click', function(ev){
+    if (swiped && ev.target.closest('a,button')) { ev.preventDefault(); ev.stopPropagation(); swiped = false; }
+  }, true);
 })();
 
 document.querySelectorAll('nav button').forEach(function(b){
