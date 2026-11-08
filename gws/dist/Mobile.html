@@ -87,6 +87,17 @@ main{padding:12px 16px;display:grid;gap:12px;max-width:720px;margin:0 auto}
 .lockrow button.on{color:var(--ink);border-color:currentColor;font-weight:700}
 .suggest .card{border:2px solid var(--accent)}
 .dot{color:var(--accent);font-size:10px;vertical-align:super}
+.msrc{border:1px solid var(--line);background:none;color:var(--ink);font:inherit;font-size:12px;border-radius:999px;padding:0 8px;line-height:20px;cursor:pointer}
+.msrc.m-up{border-color:var(--done);color:var(--done)} .msrc.m-less{border-color:var(--later);color:var(--later)}
+.mpick{display:flex;gap:6px;margin:8px 0 2px}
+.mpick button,.mrow .mpick button{flex:1;height:34px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--ink);font:inherit;font-size:13px;cursor:pointer}
+.mpick button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+.mpick button.on[data-mset="ミュート"]{background:#c62828;border-color:#c62828}
+.mrow{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.mrow .mh{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-weight:700}
+.mrow .mh small{font-weight:400;color:var(--sub)}
+.mrow .mi{font-size:12px;color:var(--sub);margin:2px 0 0}
+.mrow.off{opacity:.55}
 .sg-head{font-size:12px;font-weight:700;color:var(--accent)}
 .sg-text{margin:6px 0 4px;font-size:15px}
 .sg-hint{font-size:11px;color:var(--sub);margin:8px 0 0}
@@ -138,6 +149,7 @@ main{padding:12px 16px;display:grid;gap:12px;max-width:720px;margin:0 auto}
     <button data-v="new" class="on">新着 <span id="cNew"></span></button>
     <button data-v="later">あとで <span id="cLater"></span></button>
     <button data-v="rated">評価済み</button>
+    <button data-v="media">媒体</button>
     <button data-v="authors">著者 <span id="cAuth" class="dot"></span></button>
   </nav>
 </header>
@@ -162,6 +174,7 @@ var HINTS = {
   new: '右へスワイプ＝あとで読む　左へ＝興味なし',
   later: '右へ＝興味あり・読まない（興味4・重要2が付きます）　左へ＝興味なし　自分で付けたいときは数字を押す',
   rated: 'ここでは数字を直せます',
+  media: '媒体ごとに 増やす・ふつう・減らす（1日1本）・ミュート（出さない）を選べます。カードの媒体名を押しても変えられます',
   authors: '最近ハマっている順。色は月ごとの当たり（緑＝刺さった、赤＝外れ、灰＝見ただけ、青＝YouTubeで見た本数）'
 };
 var suggest = null;
@@ -195,9 +208,55 @@ function showCounts(){
   $('cLater').textContent = counts.later ? '(' + counts.later + ')' : '';
 }
 
+// ---- 媒体の扱い（増やす・ふつう・減らす・ミュート） ----
+var MODES = ['増やす', 'ふつう', '減らす', 'ミュート'];
+var mediaData = null;
+function mcls(m){ return m === '増やす' ? ' m-up' : (m === '減らす' || m === 'ミュート') ? ' m-less' : ''; }
+function pickHtml(name, cur){
+  return '<div class="mpick" data-mname="' + esc(name) + '">' + MODES.map(function(m){
+    return '<button data-mset="' + m + '" class="' + (m === (cur || 'ふつう') ? 'on' : '') + '">' + m + '</button>'; }).join('') + '</div>';
+}
+function renderMedia(){
+  var d = mediaData;
+  if (!d || !d.items.length) { $('list').innerHTML = '<div class="empty">媒体がありません</div>'; return; }
+  $('list').innerHTML = d.items.map(function(x){
+    return '<div class="mrow' + (x.enabled ? '' : ' off') + '"><div class="mh">' + esc(x.name) + ' ' + repBadge(x.rep, '評価') +
+      '<small>未読 ' + x.unread + '・全 ' + x.total + (x.enabled ? '' : '・停止中') + '</small></div>' +
+      (x.intro ? '<p class="mi">' + esc(x.intro) + '</p>' : '') + pickHtml(x.name, x.mode) + '</div>';
+  }).join('');
+}
+/** 扱いを変える。画面はすぐ変え、保存は裏。ミュート・減らすは新着からその場で外す。 */
+function setMedia(name, mode){
+  var before = null;
+  if (mediaData) mediaData.items.forEach(function(x){ if (x.name === name) { before = x.mode; x.mode = mode; } });
+  items.forEach(function(a){ if (a.source === name) { if (before === null) before = a.mmode || 'ふつう'; a.mmode = mode; } });
+  var gone = 0;
+  if (view === 'new' && (mode === 'ミュート' || mode === '減らす')) {
+    var keepOne = mode === '減らす';
+    items.slice().forEach(function(a){
+      if (a.source !== name || a.pinned) return;
+      if (keepOne) { keepOne = false; return; }
+      var i = find(a.id); if (i !== -1) { items.splice(i, 1); removeCard(a.id, 'left'); gone++; }
+    });
+    counts.new = Math.max(0, counts.new - gone); showCounts();
+  }
+  if (view === 'media') renderMedia();
+  else items.forEach(function(a){ if (a.source === name) { var s = slotOf(a.id); if (s && s.parentNode) s.outerHTML = cardHtml(a); } });
+  toast(name + 'を「' + mode + '」にしました' + (gone ? '（新着から' + gone + '件外しました）' : ''), false);
+  google.script.run.withSuccessHandler(function(){})
+    .withFailureHandler(function(e){ toast('保存できませんでした: ' + e.message, false); load(); })
+    .apiSetMedia(USER, name, mode);
+}
+
 function load(){
   $('hint').textContent = HINTS[view];
   $('list').innerHTML = '<div class="msg">読み込み中…</div>';
+  if (view === 'media') {
+    google.script.run.withSuccessHandler(function(res){ mediaData = res; renderMedia(); })
+      .withFailureHandler(function(e){ $('list').innerHTML = '<div class="msg">読み込めませんでした: ' + esc(e.message) + '</div>'; })
+      .apiMedia(USER);
+    return;
+  }
   if (view === 'authors') {
     google.script.run.withSuccessHandler(function(res){ authorData = res; suggest = res.suggest || null; showCounts(); renderAuthors(); })
       .withFailureHandler(function(e){ $('list').innerHTML = '<div class="msg">読み込めませんでした: ' + esc(e.message) + '</div>'; })
@@ -225,7 +284,7 @@ function cardHtml(a){
   return '<div class="slot' + (a.stale ? ' isStale' : '') + '" data-id="' + esc(a.id) + '">' +
     (sw ? '<div class="under"><span class="l">' + sw.right.label + ' →<small>離すと決定</small></span><span class="r">← ' + sw.left.label + '<small>離すと決定</small></span></div>' : '') +
     '<article class="card">' +
-      '<div class="meta"><span>' + esc(a.source) + '</span>' + repBadge(a.src, '媒体') + day(a) + (a.score ? '<span class="score">関連度 ' + a.score + '</span>' : '') + '</div>' +
+      '<div class="meta"><button class="msrc' + mcls(a.mmode) + '" data-media="' + esc(a.source) + '">' + esc(a.source) + (a.mmode && a.mmode !== 'ふつう' ? '・' + a.mmode : '') + ' ▾</button>' + repBadge(a.src, '媒体') + day(a) + (a.score ? '<span class="score">関連度 ' + a.score + '</span>' : '') + '</div>' +
       (a.author && a.author !== a.source ? '<div class="by">' + esc(a.author) + ' ' + repBadge(a.who, '人') + '</div>' : '') +
       (a.about ? '<div class="about">' + esc(a.about) + '</div>' : '') +
       (a.pinned ? '<span class="pin">自分で追加</span>' : '') +
@@ -377,6 +436,7 @@ function authorOf(el){ var c = el.closest('.author'); if (!c) return null; var n
 
 function render(){
   if (view === 'authors') return renderAuthors();
+  if (view === 'media') return renderMedia();
   if (!items.length) {
     $('list').innerHTML = '<div class="empty">' + (view === 'new' ? '未読の記事はありません' : view === 'later' ? '「あとで読む」はありません' : 'まだ評価した記事はありません') + '</div>';
     return;
@@ -515,6 +575,17 @@ function removeCard(id, dir){
 
 // ボタン（スワイプできない人・PC向け）
 $('list').addEventListener('click', function(ev){
+  var mb = ev.target.closest('button[data-mset]');
+  if (mb) { var mp = mb.closest('.mpick'); setMedia(mp.dataset.mname, mb.dataset.mset); var card0 = mb.closest('.card'); if (card0) { var pk = card0.querySelector('.mpick'); if (pk && view !== 'media') pk.remove(); } return; }
+  var ms = ev.target.closest('button[data-media]');
+  if (ms) {
+    var card = ms.closest('.card'), open = card.querySelector('.mpick');
+    if (open) { open.remove(); return; }
+    var a0 = items[find(ms.closest('.slot').dataset.id)];
+    ms.closest('.meta').insertAdjacentHTML('afterend', pickHtml(ms.dataset.media, a0 ? a0.mmode : 'ふつう'));
+    return;
+  }
+  if (view === 'media') return;
   if (view === 'authors') {
     var sgb = ev.target.closest('button[data-sg]');
     if (sgb) { answerSuggest(sgb.dataset.sg === 'yes', sgb.dataset.sg === 'yes' ? 'right' : 'left'); return; }
