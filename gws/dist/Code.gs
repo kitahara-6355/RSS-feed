@@ -294,6 +294,7 @@ var DEFAULT_SETTINGS = [
   ['おすすめフィードの版', 0, '自動で入れた「おすすめフィード」の版。手で変えない'],
   ['日本語に訳す', 'オン', 'オン / オフ。英語などの記事の見出しと概要を日本語に訳して保存する（元の見出しは「原題」列）。Apps Script の翻訳を使う（無料）'],
   ['ショート動画を外す', 'オン', 'オン / オフ。YouTube のショート動画を保存しない・新着に出さない（2026-11-08 北原さん）'],
+  ['YouTubeを新着に出す', 'オフ', 'オン / オフ。オフ のあいだは YouTube のフィードを取得せず（フィードの行と有効のチェックはそのまま）、新着と朝のメールにも出さない。観て残したい動画は「＋ URLを貼る」で記録する。視聴履歴の取り込みは続ける（2026-11-08 北原さん）'],
   ['会員限定とみなすサイト', 'nikkei.com', 'このサイトの記事は会員登録しないと中身が読めないとみなし、🔒を付けて新着とメールの下へ回す（消さない）。複数は「,」で区切る（2026-11-08 北原さん）']
 ];
 
@@ -769,7 +770,10 @@ function runFetch() {
   var stopped = [];
 
   applyFeedPolicy_(settings);
-  RssCore.fetchFeeds(Store.feeds(), { limit: limit }).forEach(function (result) {
+  // YouTube を新着に出さないあいだは、YouTube のフィードを取得しない（行は消さないので、設定を オン に戻せば再開する）
+  var ytOn = youtubeInFeed_(settings);
+  var feeds = Store.feeds().filter(function (f) { return ytOn || channelOf_(f.url) !== 'YouTube'; });
+  RssCore.fetchFeeds(feeds, { limit: limit }).forEach(function (result) {
     var feed = result.feed;
     if (result.error) {
       // 「エラー(2回目): …」の形で回数を数え、続けて maxErrors 回失敗したら止める
@@ -1436,7 +1440,9 @@ function apiArticles(user, view) {
   applyLocks_(all, st);
   all.forEach(function (a) { a.about = intros[a.source] || ''; });
   var rep = reputation_(all);
-  var isNew = function (a) { return a.status === '未読' || a.status === ''; };
+  var ytOn = youtubeInFeed_(st);
+  // YouTube を新着に出さないあいだは、未読の YouTube を新着から外す（自分で貼ったもの・あとで読む・評価済みには残る）
+  var isNew = function (a) { return (a.status === '未読' || a.status === '') && (ytOn || a.pinned || channelOf_(a.link) !== 'YouTube'); };
   var items, suggest = null;
   if (view === 'later') {
     items = all.filter(function (a) { return a.status === 'あとで読む'; }).sort(function (a, b) { return b.published - a.published; });
@@ -1448,7 +1454,7 @@ function apiArticles(user, view) {
       // 🔒（会員限定・読めない）は消さずに、読める記事の下へ回す
       return (a.stale - b.stale) || ((b.flag === '注目') - (a.flag === '注目')) || (a.locked - b.locked) || (b.score - a.score) || (b.published - a.published);
     });
-    suggest = suggestion_(people);
+    suggest = suggestion_(people, st);
   }
   var newCount = view === 'new' || !view ? items.length : applyAuthorFlags_(all.filter(isNew), people).length;
   items = items.slice(0, MOBILE_LIMIT);
@@ -1524,6 +1530,9 @@ function applyLocks_(all, settings) {
   });
   return bySource;
 }
+
+/** YouTube を新着・朝のメール・フィード取得に入れるか（初期値 オフ。2026-11-08 北原さん: YouTube はアプリで観て、残したいものだけ貼る） */
+function youtubeInFeed_(settings) { return String((settings || {})['YouTubeを新着に出す'] || 'オフ') === 'オン'; }
 
 function judge_(a) {
   if (a.status === '興味なし' || (a.interest && a.interest <= 2)) return -1;
@@ -1842,7 +1851,7 @@ function autoView_(p) {
 }
 
 /** 提案カード。1つだけ返す（ミュート＞量を絞る＞注目の順）。 */
-function suggestion_(people) {
+function suggestion_(people, settings) {
   var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
   var cutoff = Utilities.formatDate(new Date(Date.now() - SUGGEST.snoozeDays * 864e5), 'Asia/Tokyo', 'yyyy-MM-dd');
   var best = null, rank = { 'ミュート': 3, '量を絞る': 2, '注目': 1 };
@@ -1868,8 +1877,8 @@ function suggestion_(people) {
       void last; void today;
     });
   });
-  if (!best) {
-    // よく見ているのにフィードに無いチャンネル
+  if (!best && youtubeInFeed_(settings)) {
+    // よく見ているのにフィードに無いチャンネル（YouTube を新着に出さないあいだは提案しない）
     var cand = Object.keys(people).map(function (k) { return people[k]; })
       .filter(function (p) { return p.views && p.views.id && !p.views.subscribed && p.views.recent >= VIEWS_SUGGEST_MIN && !(p.snooze['YouTube'] && p.snooze['YouTube'] > cutoff); })
       .sort(function (a, b) { return b.views.recent - a.views.recent; })[0];
@@ -1950,6 +1959,8 @@ function rebuildAuthors_() {
 /** 画面の 著者 タブ。最近ハマっている順。 */
 function apiAuthors(user) {
   var book = mobileBook_(user);
+  var st = {};
+  try { Store.use(book); st = Store.settings(); } finally { Store.use(null); }
   var people = authorStats_(readArticles_(book), readAuthorSheet_(book), readViews_(book));
   var months = [];
   for (var i = 5; i >= 0; i--) {
@@ -1977,7 +1988,7 @@ function apiAuthors(user) {
   }).filter(function (x) { return x.judged || x.pinned || x.shown >= 5 || (x.views && x.views.recent >= 3) || CHANNELS.some(function (c) { return x.flags[c] && x.flags[c] !== 'ふつう'; }); })
     .sort(function (a, b) { return (b.heat - a.heat) || (b.judged - a.judged) || (b.shown - a.shown); });
   // 提案カード（ミュート・注目・フィードに足す など）は新着ではなく著者タブに出す（2026-11-08 北原さん）
-  return { months: months, channels: CHANNELS, flags: AUTHOR_FLAGS, items: list.slice(0, 80), suggest: suggestion_(people) };
+  return { months: months, channels: CHANNELS, flags: AUTHOR_FLAGS, items: list.slice(0, 80), suggest: suggestion_(people, st) };
 }
 
 /** 著者の設定を変える。field: flag（value=フラグ, ch 必須）/ snooze（ch 必須）/ manual / aliases */
@@ -2184,6 +2195,8 @@ function apiAddUrl(user, url) {
     var added = [];
     if (info.author && info.author !== info.source && addFocusKeyword_(info.author, '注目の人')) added.push('人「' + info.author + '」');
     if (info.source && addFocusKeyword_(info.source, '注目の媒体')) added.push('媒体「' + info.source + '」');
+    // YouTube を新着に出さないあいだは、貼ってもチャンネルをフィードに足さない（記録と注目だけ）
+    if (info.isYouTube && !youtubeInFeed_(Store.settings())) info.feedUrl = '';
     var feed = info.feedUrl ? addFeedIfNew_(info.source || info.title, info.feedUrl, info.isYouTube ? 'YouTube' : '手で追加', info.about) : false;
     if (feed) added.push('フィード');
     runLearn();
@@ -2332,8 +2345,11 @@ function sendMorningMail_() {
   var locked = {};
   applyLocks_(all, settings);
   all.forEach(function (a) { if (a.locked) locked[a.id] = true; });
-  applyAuthorFlags_(all, authorStats_(all, readAuthorSheet_(book))).forEach(function (a) { keep[a.id] = true; });
-  var top = sh.getRange(2, 1, sh.getLastRow() - 1, HEADERS.ARTICLES.length).getValues()
+  var ytOn = youtubeInFeed_(settings);
+  applyAuthorFlags_(all, authorStats_(all, readAuthorSheet_(book))).forEach(function (a) {
+    if (ytOn || a.pinned || channelOf_(a.link) !== 'YouTube') keep[a.id] = true;  // YouTube はメールにも出さない
+  });
+  var top = sh.getRange(2, 1, sh.getLastRow() - 1, Math.min(HEADERS.ARTICLES.length, sh.getMaxColumns())).getValues()
     .filter(function (r) {
       if (!keep[String(r[c['ID']])]) return false;  // ミュート・量を絞る を当てる
       var got = r[c['取得日時']];
