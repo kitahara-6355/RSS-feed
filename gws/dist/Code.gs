@@ -268,9 +268,9 @@ var SHEETS = {
 
 var HEADERS = {
   PROFILE: ['項目', '値', '説明'],
-  FEEDS: ['有効', '名前', 'URL', 'カテゴリ', '重み', '最終取得', '状態', '紹介'],
+  FEEDS: ['有効', '名前', 'URL', 'カテゴリ', '重み', '最終取得', '状態', '紹介', '扱い'],
   ARTICLES: ['ID', '取得日時', '公開日時', 'ソース', 'タイトル', 'URL', '概要', 'タグ', '関連度',
-    'AI要約', '興味度', '重要度', 'ステータス', '画像', '当たった興味ワード', '書き手', '評価日時', '追加元'],
+    'AI要約', '興味度', '重要度', 'ステータス', '画像', '当たった興味ワード', '書き手', '評価日時', '追加元', '原題', '鍵'],
   KEYWORDS: ['キーワード', '重み', '分類', '由来'],
   AUTHORS: ['名前', '別名', '見方（手書き）', 'フラグ 記事', 'フラグ まとめ経由', 'フラグ YouTube', 'フラグ X', '提案を保留',
     '見方（自動）', '記事', 'まとめ経由', 'YouTube', 'X', '刺さるテーマ', '刺さらないテーマ', '最終判定', '更新'],
@@ -291,7 +291,11 @@ var DEFAULT_SETTINGS = [
   ['エラーで止める回数', 3, '同じフィードがこの回数続けて失敗したら、有効のチェックを自動で外す'],
   ['読んだ視聴履歴', '', '取り込み済みのテイクアウトのファイルID（自動で入る。空にすると次の朝に読み直す）'],
   ['取得しないサイト', 'note.com', 'URLにこの文字を含むフィードは止める。複数は「,」で区切る（2026-11-01 北原さん: noteは取得しない）'],
-  ['おすすめフィードの版', 0, '自動で入れた「おすすめフィード」の版。手で変えない']
+  ['おすすめフィードの版', 0, '自動で入れた「おすすめフィード」の版。手で変えない'],
+  ['日本語に訳す', 'オン', 'オン / オフ。英語などの記事の見出しと概要を日本語に訳して保存する（元の見出しは「原題」列）。Apps Script の翻訳を使う（無料）'],
+  ['ショート動画を外す', 'オン', 'オン / オフ。YouTube のショート動画を保存しない・新着に出さない（2026-11-08 北原さん）'],
+  ['YouTubeを新着に出す', 'オフ', 'オン / オフ。オフ のあいだは YouTube のフィードを取得せず（フィードの行と有効のチェックはそのまま）、新着と朝のメールにも出さない。観て残したい動画は「＋ URLを貼る」で記録する。視聴履歴の取り込みは続ける（2026-11-08 北原さん）'],
+  ['会員限定とみなすサイト', 'nikkei.com', 'このサイトの記事は会員登録しないと中身が読めないとみなし、🔒を付けて新着とメールの下へ回す（消さない）。複数は「,」で区切る（2026-11-08 北原さん）']
 ];
 
 // 1人1冊。このブックが誰のものかを書いておく。
@@ -422,7 +426,8 @@ var Store = (function () {
         category: r[c['カテゴリ']],
         weight: Number(r[c['重み']]) || 0,
         status: String(r[c['状態']] || ''),
-        intro: String(r[c['紹介']] || '')
+        intro: String(r[c['紹介']] || ''),
+        mode: MEDIA_MODES.indexOf(String(r[c['扱い']] || '')) !== -1 ? String(r[c['扱い']]) : 'ふつう'
       };
     }).filter(function (f) {
       return f.enabled && f.url;
@@ -484,7 +489,7 @@ var Store = (function () {
     var values = items.map(function (a) {
       return [a.id, now, a.published || '', a.source, a.title, a.link, a.summary,
         (a.tags || []).join(', '), a.score, a.aiSummary || '', '', '', '未読', a.image || '',
-        (a.words || []).join('・'), a.author || ''];
+        (a.words || []).join('・'), a.author || '', '', '', a.original || ''];
     });
     var sh = sheet(SHEETS.ARTICLES);
     sh.getRange(sh.getLastRow() + 1, 1, values.length, values[0].length).setValues(values);
@@ -753,6 +758,9 @@ function runFetch() {
   var limit = Number(settings['1フィードあたり件数']) || 20;
   var threshold = Number(settings['関連度しきい値']) || 0;
   var skipPaid = String(settings['有料記事を外す'] || 'オン') !== 'オフ';
+  var skipShorts = String(settings['ショート動画を外す'] || 'オン') !== 'オフ';
+  var translate = String(settings['日本語に訳す'] || 'オン') !== 'オフ';
+  var shorts = 0, translated = 0;
   var maxErrors = Number(settings['エラーで止める回数']) || 3;
   var keywords = Store.keywords();
   var seen = Store.existingIds();
@@ -763,7 +771,14 @@ function runFetch() {
   var stopped = [];
 
   applyFeedPolicy_(settings);
-  RssCore.fetchFeeds(Store.feeds(), { limit: limit }).forEach(function (result) {
+  try { seedMediaModes_(Store.sheet(SHEETS.FEEDS).getParent()); } catch (e) { Store.log('媒体の扱い', 'エラー', e.message); }
+  // YouTube を新着に出さないあいだは、YouTube のフィードを取得しない（行は消さないので、設定を オン に戻せば再開する）
+  var ytOn = youtubeInFeed_(settings);
+  var feeds = Store.feeds().filter(function (f) { return (ytOn || channelOf_(f.url) !== 'YouTube') && f.mode !== 'ミュート'; });
+  // 「増やす」の媒体は1回に見る件数を2倍にする
+  RssCore.fetchFeeds(feeds, { limit: limit * 2 }).forEach(function (result) {
+    var feedLimit = result.feed.mode === '増やす' ? limit * 2 : limit;
+    result.items = result.items.slice(0, feedLimit);
     var feed = result.feed;
     if (result.error) {
       // 「エラー(2回目): …」の形で回数を数え、続けて maxErrors 回失敗したら止める
@@ -780,6 +795,12 @@ function runFetch() {
       if (seen[item.id]) return;
       seen[item.id] = true;
       if (skipPaid && item.paid) { paid++; return; }
+      if (skipShorts && isShort_(item.link, item.title)) { shorts++; return; }
+      // 英語などは先に日本語にする（興味キーワードも日本語の見出しに当たるようになる）
+      if (translate && translated < TRANSLATE_PER_RUN && needsJa_(item.title)) {
+        var ja = toJa_(item.title);
+        if (ja) { item.original = item.title; item.title = ja; item.summary = toJa_(item.summary) || item.summary; translated++; }
+      }
       var c = Classify.byKeywords(item, keywords, feed.weight);
       if (c.score < threshold) { skipped++; return; }
       item.tags = c.tags;
@@ -794,7 +815,7 @@ function runFetch() {
   added.sort(function (a, b) { return (a.published || 0) - (b.published || 0); });
   Store.appendArticles(added);
   Store.log('取得', errors.length ? '一部エラー' : 'OK',
-    '追加' + added.length + '件 / しきい値で除外' + skipped + '件 / 有料で除外' + paid + '件' +
+    '追加' + added.length + '件 / しきい値で除外' + skipped + '件 / 有料で除外' + paid + '件 / ショート動画で除外' + shorts + '件 / 日本語に訳した' + translated + '件' +
     (stopped.length ? ' / 続けて失敗したので止めた: ' + stopped.join('、') : '') +
     (errors.length ? ' / ' + errors.join(' | ') : ''));
 
@@ -893,14 +914,57 @@ function removeTriggers() {
  * こうすると「利用者を登録」のあとに本人がブックを開いて自動実行を入れ直さなくてよい。
  * 開けないブック（持ち主が別の人で共有されていない等）はログに残して飛ばす。
  */
-function runFetchAll() { forEachBook_(function () { runFetch(); backfillWords_(); importViewsSafe_(); sendMorningMail_(); }, '取得'); }
+function runFetchAll() { forEachBook_(function () { runFetch(); backfillWords_(); translateBackfill_(TRANSLATE_PER_RUN); importViewsSafe_(); sendMorningMail_(); }, '取得'); }
+
+// ===== 日本語訳とショート動画（2026-11-08 北原さん） =====
+var TRANSLATE_PER_RUN = 150;
+/** 仮名・漢字が1字もなく、英字などがある見出しは訳す。 */
+function needsJa_(s) {
+  s = String(s || '');
+  return /[A-Za-z\u00C0-\u024F]{3,}/.test(s) && !/[\u3040-\u30FF\u4E00-\u9FFF]/.test(s);
+}
+function toJa_(s) {
+  s = String(s || '').trim();
+  if (!s) return '';
+  try { return LanguageApp.translate(s.slice(0, 1500), '', 'ja'); } catch (e) { return ''; }
+}
+/** YouTube のショート動画か。フィードではショートの URL が /shorts/ になる。 */
+function isShort_(link, title) {
+  return /youtube\.com\/shorts\//.test(String(link || '')) || /#shorts?\b/i.test(String(title || ''));
+}
+/**
+ * まだ訳していない未読・あとで読むの記事を訳す（列を足す前に取った記事用）。
+ * 見出しと概要を日本語にして、元の見出しを「原題」に残す。timeLimitMs を過ぎたらやめる。
+ */
+function translateBackfill_(max, timeLimitMs, book) {
+  var sh = book ? book.getSheetByName(SHEETS.ARTICLES) : Store.sheet(SHEETS.ARTICLES);
+  if (!sh || sh.getLastRow() < 2) return 0;
+  if (!book && String(Store.settings()['日本語に訳す'] || 'オン') === 'オフ') return 0;
+  var c = articleCols_();
+  if (!sh.getRange(1, c['原題'] + 1).getValue()) sh.getRange(1, c['原題'] + 1).setValue('原題').setFontWeight('bold');
+  var start = Date.now(), done = 0;
+  var values = sh.getRange(2, 1, sh.getLastRow() - 1, HEADERS.ARTICLES.length).getValues();
+  for (var i = values.length - 1; i >= 0 && done < max; i--) {
+    if (timeLimitMs && Date.now() - start > timeLimitMs) break;
+    var r = values[i], st = String(r[c['ステータス']] || '未読');
+    if (st !== '未読' && st !== 'あとで読む') continue;
+    if (r[c['原題']] || !needsJa_(r[c['タイトル']])) continue;
+    var ja = toJa_(r[c['タイトル']]); if (!ja) continue;
+    var sum = toJa_(r[c['概要']]) || r[c['概要']];
+    sh.getRange(i + 2, c['タイトル'] + 1).setValue(ja);
+    sh.getRange(i + 2, c['概要'] + 1).setValue(sum);
+    sh.getRange(i + 2, c['原題'] + 1).setValue(r[c['タイトル']]);
+    done++;
+  }
+  return done;
+}
 function importViewsSafe_() {
   try { importWatchHistory_(false); rebuildAuthors_(); } catch (e) { Store.log('視聴履歴', 'エラー', e.message); }
 }
 /** メニューや手動で読み直すとき。 */
 function runImportWatchHistory() { forEachBook_(function () { Store.ensureSchema(); importWatchHistory_(true); rebuildAuthors_(); }, '視聴履歴'); }
 /** メニューの「今すぐ取得」。メールは送らない。管理用ブックで押すと台帳のブックをまとめて取得する。 */
-function runFetchNow() { forEachBook_(function () { runFetch(); backfillWords_(); importViewsSafe_(); }, '今すぐ取得'); }
+function runFetchNow() { forEachBook_(function () { runFetch(); backfillWords_(); translateBackfill_(TRANSLATE_PER_RUN); importViewsSafe_(); }, '今すぐ取得'); }
 
 /** 当たった興味ワードが空の記事（列を足す前に取った記事）に、今の興味キーワードで付け直す。 */
 function backfillWords_() {
@@ -1368,13 +1432,23 @@ function apiArticles(user, view) {
   var book = mobileBook_(user);
   var name = '';
   var intros = {};
-  try { Store.use(book); name = Store.profile()['利用者名'] || ''; intros = Store.feedIntros(); } finally { Store.use(null); }
-  var all = readArticles_(book);
+  var st = {};
+  try { Store.use(book); name = Store.profile()['利用者名'] || ''; intros = Store.feedIntros(); st = Store.settings(); } finally { Store.use(null); }
+  // 開いたときに、まだ訳していない未読があれば少しだけ訳す（待たせないよう2秒まで。残りは朝の取得で）
+  if (String(st['日本語に訳す'] || 'オン') !== 'オフ') {
+    try { if (translateBackfill_(20, 2000, book)) SpreadsheetApp.flush(); } catch (e) {}
+  }
+  var hideShorts = String(st['ショート動画を外す'] || 'オン') !== 'オフ';
+  var all = readArticles_(book).filter(function (a) { return !(hideShorts && a.short); });
   if (!all.length) return { name: name, items: [], counts: { new: 0, later: 0 } };
   var people = authorStats_(all, readAuthorSheet_(book), readViews_(book));
+  applyLocks_(all, st);
   all.forEach(function (a) { a.about = intros[a.source] || ''; });
   var rep = reputation_(all);
-  var isNew = function (a) { return a.status === '未読' || a.status === ''; };
+  var ytOn = youtubeInFeed_(st);
+  // YouTube を新着に出さないあいだは、未読の YouTube を新着から外す（自分で貼ったもの・あとで読む・評価済みには残る）
+  var isNew = function (a) { return (a.status === '未読' || a.status === '') && (ytOn || a.pinned || channelOf_(a.link) !== 'YouTube'); };
+  var modes = mediaModes_(book);
   var items, suggest = null;
   if (view === 'later') {
     items = all.filter(function (a) { return a.status === 'あとで読む'; }).sort(function (a, b) { return b.published - a.published; });
@@ -1382,15 +1456,18 @@ function apiArticles(user, view) {
     items = all.filter(function (a) { return a.interest || a.importance; }).reverse();
   } else {
     all.forEach(function (a) { a.stale = isStale_(a.kind, a.published); });
-    items = applyAuthorFlags_(all.filter(isNew), people).sort(function (a, b) {
-      return (a.stale - b.stale) || ((b.flag === '注目') - (a.flag === '注目')) || (b.score - a.score) || (b.published - a.published);
+    items = applyAuthorFlags_(applyMediaModes_(all.filter(isNew), modes), people).sort(function (a, b) {
+      // 🔒（会員限定・読めない）は消さずに、読める記事の下へ回す。「増やす」の媒体と注目の人は上へ
+      var up = function (x) { return (x.flag === '注目' ? 1 : 0) + (x.mmode === '増やす' ? 1 : 0); };
+      return (a.stale - b.stale) || (up(b) - up(a)) || (a.locked - b.locked) || (b.score - a.score) || (b.published - a.published);
     });
-    suggest = suggestion_(people);
+    suggest = suggestion_(people, st);
   }
-  var newCount = view === 'new' || !view ? items.length : applyAuthorFlags_(all.filter(isNew), people).length;
+  var newCount = view === 'new' || !view ? items.length : applyAuthorFlags_(applyMediaModes_(all.filter(isNew), modes), people).length;
   items = items.slice(0, MOBILE_LIMIT);
   items.forEach(function (a) {
     a.src = rep['媒体:' + a.source] || null;
+    a.mmode = modes[a.source] || 'ふつう';
     var p = a.person && people[a.person];
     var s = p && p.ch[a.ch];
     // 人のバッジは「その人×この経路」の数字（落合さんの記事とYouTubeを分けて見る）
@@ -1428,6 +1505,43 @@ function freshKind_(title, source) {
 function isStale_(kind, publishedMs) {
   return kind === 'news' && publishedMs > 0 && Date.now() - publishedMs > NEWS_STALE_DAYS * 24 * 3600 * 1000;
 }
+/**
+ * 会員登録・有料会員にならないと中身が読めない記事（2026-11-08 北原さん）。
+ * 消さずに 🔒 を付け、新着とメールで下へ回す。興味の記録（話題・書き手・媒体のプラス・マイナス）には入れず、
+ * 「読めた／読めない」は 記事 シートの「鍵」列に別に残す（judge_ は鍵を見ない）。
+ * 見分け方: 見出し・概要の文言 / 設定「会員限定とみなすサイト」/ その媒体で「読めない」が LOCK_LEARN_MIN 件以上かつ「読めた」より多い。
+ */
+var LOCK_WORDS = /会員限定|有料会員|無料会員登録|会員登録(を|して|すると|で)|ログインして(続き|全文)|続きを読むには|プレミアム会員|有料プラン/;
+var LOCK_MARKS = ['読めた', '読めない'];
+var LOCK_LEARN_MIN = 2;
+function lockHosts_(settings) {
+  return String(settings['会員限定とみなすサイト'] || '').split(/[,、\s]+/).map(function (x) { return x.trim().toLowerCase(); }).filter(String);
+}
+/** all（readArticles_ の結果）に lock（'会員限定' / '読めない' / '読めた' / ''）と locked を付け、媒体ごとの数を返す。 */
+function applyLocks_(all, settings) {
+  var hosts = lockHosts_(settings || {});
+  var bySource = {};
+  all.forEach(function (a) {
+    if (LOCK_MARKS.indexOf(a.lockMark) === -1) return;
+    var o = bySource[a.source] || (bySource[a.source] = { no: 0, ok: 0 });
+    if (a.lockMark === '読めない') o.no++; else o.ok++;
+  });
+  all.forEach(function (a) {
+    var host = ((/^https?:\/\/([^\/:?#]+)/.exec(a.link) || [])[1] || '').toLowerCase();
+    var o = bySource[a.source];
+    a.lockGuess = LOCK_WORDS.test(a.title + ' ' + (a.rawSummary || '')) ||
+      hosts.some(function (x) { return host === x || host.slice(-x.length - 1) === '.' + x; }) ||
+      !!(o && o.no >= LOCK_LEARN_MIN && o.no > o.ok);
+    a.lock = LOCK_MARKS.indexOf(a.lockMark) !== -1 ? a.lockMark : (a.lockGuess ? '会員限定' : '');
+    a.locked = a.lock === '会員限定' || a.lock === '読めない';
+    delete a.rawSummary;
+  });
+  return bySource;
+}
+
+/** YouTube を新着・朝のメール・フィード取得に入れるか（初期値 オフ。2026-11-08 北原さん: YouTube はアプリで観て、残したいものだけ貼る） */
+function youtubeInFeed_(settings) { return String((settings || {})['YouTubeを新着に出す'] || 'オフ') === 'オン'; }
+
 function judge_(a) {
   if (a.status === '興味なし' || (a.interest && a.interest <= 2)) return -1;
   if (a.status === 'あとで読む' || a.status === '完了' || a.interest >= 4) return 1;
@@ -1502,6 +1616,180 @@ function apiTriage(user, row, id, status, interest) {
   return true;
 }
 
+// ===== 媒体ごとの扱い（2026-11-08 北原さん: 東洋経済は媒体ごと止めたい、ITmedia は増やしたい） =====
+var MEDIA_MODES = ['増やす', 'ふつう', '減らす', 'ミュート'];
+var MEDIA_DEFAULTS_VERSION = 1;
+/** 初めてのときだけ、ITmedia 系を「増やす」にする（北原さん希望）。あとで人が変えたものは戻さない。 */
+function seedMediaModes_(book) {
+  var sh = book.getSheetByName(SHEETS.FEEDS);
+  if (!sh || sh.getLastRow() < 2) return;
+  var c = {}; HEADERS.FEEDS.forEach(function (h, i) { c[h] = i; });
+  if (!sh.getRange(1, c['扱い'] + 1).getValue()) sh.getRange(1, c['扱い'] + 1).setValue('扱い').setFontWeight('bold');
+  var setSh = book.getSheetByName(SHEETS.SETTINGS);
+  var keys = setSh.getRange(2, 1, Math.max(setSh.getLastRow() - 1, 1), 2).getValues();
+  var done = 0, at = -1;
+  keys.forEach(function (r, i) { if (r[0] === '媒体の扱いの初期値の版') { done = Number(r[1]) || 0; at = i; } });
+  if (done >= MEDIA_DEFAULTS_VERSION) return;
+  var n = sh.getLastRow() - 1;
+  var vals = sh.getRange(2, 1, n, HEADERS.FEEDS.length).getValues();
+  var out = vals.map(function (r) {
+    var cur = String(r[c['扱い']] || '');
+    if (!cur && /^ITmedia|^＠IT/.test(String(r[c['名前']] || ''))) return ['増やす'];
+    return [cur || 'ふつう'];
+  });
+  sh.getRange(2, c['扱い'] + 1, n, 1).setValues(out);
+  if (at === -1) setSh.appendRow(['媒体の扱いの初期値の版', MEDIA_DEFAULTS_VERSION, '自動で入れた媒体の扱いの初期値の版。手で変えない']);
+  else setSh.getRange(at + 2, 2).setValue(MEDIA_DEFAULTS_VERSION);
+}
+/** 媒体名 → 扱い。 */
+function mediaModes_(book) {
+  var sh = book.getSheetByName(SHEETS.FEEDS);
+  var out = {};
+  if (!sh || sh.getLastRow() < 2) return out;
+  var c = {}; HEADERS.FEEDS.forEach(function (h, i) { c[h] = i; });
+  sh.getRange(2, 1, sh.getLastRow() - 1, Math.min(HEADERS.FEEDS.length, sh.getMaxColumns())).getValues().forEach(function (r) {
+    var m = String(r[c['扱い']] || '');
+    if (r[c['名前']] && MEDIA_MODES.indexOf(m) !== -1 && m !== 'ふつう') out[String(r[c['名前']])] = m;
+  });
+  return out;
+}
+/** ミュートは外し、減らすは1日1本にする。自分で貼った記事はそのまま。 */
+function applyMediaModes_(items, modes) {
+  var seen = {};
+  return items.filter(function (a) {
+    var m = modes[a.source] || 'ふつう';
+    a.mmode = m;
+    if (a.pinned) return true;
+    if (m === 'ミュート') return false;
+    if (m === '減らす') {
+      var key = a.source + '|' + Utilities.formatDate(new Date(a.got || a.published || Date.now()), 'Asia/Tokyo', 'yyyy-MM-dd');
+      if (seen[key]) return false;
+      seen[key] = true;
+    }
+    return true;
+  });
+}
+/** 媒体タブ用の一覧。未読の多い順。 */
+function apiMedia(user) {
+  var book = mobileBook_(user);
+  seedMediaModes_(book);
+  var sh = book.getSheetByName(SHEETS.FEEDS);
+  var c = {}; HEADERS.FEEDS.forEach(function (h, i) { c[h] = i; });
+  var all = readArticles_(book);
+  var rep = reputation_(all);
+  var unread = {}, total = {};
+  all.forEach(function (a) {
+    total[a.source] = (total[a.source] || 0) + 1;
+    if (a.status === '未読' || a.status === '') unread[a.source] = (unread[a.source] || 0) + 1;
+  });
+  var seen = {};
+  var list = [];
+  if (sh && sh.getLastRow() > 1) {
+    sh.getRange(2, 1, sh.getLastRow() - 1, HEADERS.FEEDS.length).getValues().forEach(function (r) {
+      var name = String(r[c['名前']] || '');
+      if (!name || seen[name]) return;
+      if (channelOf_(String(r[c['URL']] || '')) === 'YouTube') return;  // YouTube は新着に出さないので並べない
+      seen[name] = true;
+      var m = String(r[c['扱い']] || 'ふつう');
+      var o = rep['媒体:' + name] || null;
+      list.push({ name: name, mode: MEDIA_MODES.indexOf(m) !== -1 ? m : 'ふつう', enabled: r[c['有効']] === true,
+        unread: unread[name] || 0, total: total[name] || 0, intro: String(r[c['紹介']] || ''),
+        rep: o ? { plus: o.plus, minus: o.minus, rp: o.rp, rm: o.rm, score: o.score, trend: o.trend } : null });
+    });
+  }
+  list.sort(function (a, b) { return (b.enabled - a.enabled) || (b.unread - a.unread) || (b.total - a.total); });
+  return { modes: MEDIA_MODES, items: list };
+}
+/** 媒体の扱いを変える（同じ名前のフィードの行すべて）。 */
+function apiSetMedia(user, name, mode) {
+  if (MEDIA_MODES.indexOf(mode) === -1) throw new Error('扱いの値が違います');
+  var book = mobileBook_(user);
+  var sh = book.getSheetByName(SHEETS.FEEDS);
+  var c = {}; HEADERS.FEEDS.forEach(function (h, i) { c[h] = i; });
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    if (!sh.getRange(1, c['扱い'] + 1).getValue()) sh.getRange(1, c['扱い'] + 1).setValue('扱い').setFontWeight('bold');
+    var names = sh.getRange(2, c['名前'] + 1, sh.getLastRow() - 1, 1).getValues();
+    var hit = 0;
+    names.forEach(function (r, i) { if (String(r[0]) === String(name)) { sh.getRange(i + 2, c['扱い'] + 1).setValue(mode); hit++; } });
+    if (!hit) throw new Error('媒体が見つかりません: ' + name);
+  } finally {
+    lock.releaseLock();
+  }
+  return true;
+}
+
+/**
+ * まとめて仕分けを書く（スマホで続けてスワイプしたとき、1回の呼び出しにまとめる）。
+ * ops: [{ row, id, status, interest, importance }]。interest / importance は null なら触らない、'' なら空にする。
+ * 返り値: 失敗した op の id と理由の配列（全部できたら空）。
+ */
+function apiTriageBatch(user, ops) {
+  var book = mobileBook_(user);
+  var sh = book.getSheetByName(SHEETS.ARTICLES);
+  var c = articleCols_();
+  var failed = [];
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var now = new Date();
+    (ops || []).forEach(function (op) {
+      try {
+        if (STATUSES.indexOf(op.status) === -1) throw new Error('ステータスの値が違います');
+        var row = Number(op.row);
+        if (String(sh.getRange(row, c['ID'] + 1).getValue()) !== String(op.id)) {
+          // 行がずれていたら ID で探し直す
+          var ids = sh.getRange(2, c['ID'] + 1, sh.getLastRow() - 1, 1).getValues();
+          row = 0;
+          for (var i = 0; i < ids.length; i++) if (String(ids[i][0]) === String(op.id)) { row = i + 2; break; }
+          if (!row) throw new Error('記事が見つかりません');
+        }
+        sh.getRange(row, c['ステータス'] + 1).setValue(op.status);
+        [['interest', '興味度'], ['importance', '重要度']].forEach(function (f) {
+          var v = op[f[0]];
+          if (v === null || v === undefined) return;
+          if (!(v === '' || (Number(v) >= 1 && Number(v) <= 5))) throw new Error('1〜5で付けてください');
+          sh.getRange(row, c[f[1]] + 1).setValue(v === '' ? '' : Number(v));
+        });
+        sh.getRange(row, c['評価日時'] + 1).setValue(now);
+      } catch (e) {
+        failed.push({ id: op.id, reason: e.message });
+      }
+    });
+  } finally {
+    lock.releaseLock();
+  }
+  return failed;
+}
+
+/**
+ * 中身が読めたか（鍵）を記事に残す。value: 読めた / 読めない / ''（取り消し）。
+ * 興味度・ステータスには触らない（興味があったことはそのまま記録に残す）。
+ */
+function apiMarkLock(user, row, id, value) {
+  if (value !== '' && LOCK_MARKS.indexOf(value) === -1) throw new Error('鍵の値が違います');
+  var book = mobileBook_(user);
+  var sh = book.getSheetByName(SHEETS.ARTICLES);
+  var c = articleCols_();
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    row = Number(row);
+    if (String(sh.getRange(row, c['ID'] + 1).getValue()) !== String(id)) {
+      var ids = sh.getRange(2, c['ID'] + 1, sh.getLastRow() - 1, 1).getValues();
+      row = 0;
+      for (var i = 0; i < ids.length; i++) if (String(ids[i][0]) === String(id)) { row = i + 2; break; }
+      if (!row) throw new Error('記事が見つかりません');
+    }
+    if (!sh.getRange(1, c['鍵'] + 1).getValue()) sh.getRange(1, c['鍵'] + 1).setValue('鍵').setFontWeight('bold');
+    sh.getRange(row, c['鍵'] + 1).setValue(value);
+  } finally {
+    lock.releaseLock();
+  }
+  return true;
+}
+
 // ===== 著者（人×受け取り方） =====
 /**
  * 著者を「人×経路（記事／まとめ経由／YouTube／X）」で数える。2026-11-01 北原さんの提案OKで追加。
@@ -1563,7 +1851,8 @@ function readArticles_(book) {
   var sh = book.getSheetByName(SHEETS.ARTICLES);
   if (!sh || sh.getLastRow() < 2) return [];
   var c = articleCols_();
-  var values = sh.getRange(2, 1, sh.getLastRow() - 1, HEADERS.ARTICLES.length).getValues();
+  // 「鍵」列を足す前のブックでも読めるよう、シートにある列までだけ読む（足りない列は空として扱う）
+  var values = sh.getRange(2, 1, sh.getLastRow() - 1, Math.min(HEADERS.ARTICLES.length, sh.getMaxColumns())).getValues();
   return values.map(function (r, i) {
     var pub = r[c['公開日時']] instanceof Date ? r[c['公開日時']] : (r[c['取得日時']] instanceof Date ? r[c['取得日時']] : null);
     var got = r[c['取得日時']] instanceof Date ? r[c['取得日時']].getTime() : 0;
@@ -1576,6 +1865,9 @@ function readArticles_(book) {
       status: String(r[c['ステータス']] || '未読'), image: String(r[c['画像']] || ''),
       words: String(r[c['当たった興味ワード']] || ''), author: String(r[c['書き手']] || ''),
       pinned: String(r[c['追加元']] || '') === '手で追加',
+      original: String(r[c['原題']] || ''),
+      lockMark: String(r[c['鍵']] || ''), rawSummary: String(r[c['概要']] || ''),
+      short: isShort_(String(r[c['URL']] || ''), String(r[c['タイトル']] || '')),
       kind: freshKind_(String(r[c['タイトル']] || ''), String(r[c['ソース']] || '')),
       got: got,
       judged: r[c['評価日時']] instanceof Date ? r[c['評価日時']].getTime() : got
@@ -1671,7 +1963,7 @@ function autoView_(p) {
 }
 
 /** 提案カード。1つだけ返す（ミュート＞量を絞る＞注目の順）。 */
-function suggestion_(people) {
+function suggestion_(people, settings) {
   var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
   var cutoff = Utilities.formatDate(new Date(Date.now() - SUGGEST.snoozeDays * 864e5), 'Asia/Tokyo', 'yyyy-MM-dd');
   var best = null, rank = { 'ミュート': 3, '量を絞る': 2, '注目': 1 };
@@ -1681,12 +1973,14 @@ function suggestion_(people) {
       var s = p.ch[ch]; if (!s) return;
       var flag = p.flags[ch] || 'ふつう';
       if (p.snooze[ch] && p.snooze[ch] > cutoff) return;
+      // YouTube は新着で見送っても本編を見ていることが多いので、止める・絞る提案はしない（2026-11-08 北原さん）
+      var noStop = ch === 'YouTube';
       var last = s.seq.slice(-Math.max(SUGGEST.muteRun, SUGGEST.focusRun));
       var tail = function (n, sign) { var x = s.seq.slice(-n); return x.length === n && x.every(function (e) { return e.s === sign; }); };
       var cand = null;
-      if (flag !== 'ミュート' && tail(SUGGEST.muteRun, -1)) {
+      if (!noStop && flag !== 'ミュート' && tail(SUGGEST.muteRun, -1)) {
         cand = { type: 'ミュート', reason: p.name + 'の' + ch + 'を' + SUGGEST.muteRun + '回続けて興味なしにしました。' + ch + 'だけミュートしますか？' + otherChannels_(p, ch) };
-      } else if (flag === 'ふつう' && s.rn >= SUGGEST.throttleMin && s.rp / s.rn < SUGGEST.throttleRate) {
+      } else if (!noStop && flag === 'ふつう' && s.rn >= SUGGEST.throttleMin && s.rp / s.rn < SUGGEST.throttleRate) {
         cand = { type: '量を絞る', reason: p.name + 'の' + ch + 'は2週間で' + s.rn + '本出て、刺さったのは' + s.rp + '本です。1日1本に絞りますか？' };
       } else if (flag !== '注目' && flag !== 'ミュート' && tail(SUGGEST.focusRun, 1)) {
         cand = { type: '注目', reason: p.name + 'の' + ch + 'が' + SUGGEST.focusRun + '回続けて刺さりました。注目にして上に出しますか？' };
@@ -1695,8 +1989,8 @@ function suggestion_(people) {
       void last; void today;
     });
   });
-  if (!best) {
-    // よく見ているのにフィードに無いチャンネル
+  if (!best && youtubeInFeed_(settings)) {
+    // よく見ているのにフィードに無いチャンネル（YouTube を新着に出さないあいだは提案しない）
     var cand = Object.keys(people).map(function (k) { return people[k]; })
       .filter(function (p) { return p.views && p.views.id && !p.views.subscribed && p.views.recent >= VIEWS_SUGGEST_MIN && !(p.snooze['YouTube'] && p.snooze['YouTube'] > cutoff); })
       .sort(function (a, b) { return b.views.recent - a.views.recent; })[0];
@@ -1777,6 +2071,8 @@ function rebuildAuthors_() {
 /** 画面の 著者 タブ。最近ハマっている順。 */
 function apiAuthors(user) {
   var book = mobileBook_(user);
+  var st = {};
+  try { Store.use(book); st = Store.settings(); } finally { Store.use(null); }
   var people = authorStats_(readArticles_(book), readAuthorSheet_(book), readViews_(book));
   var months = [];
   for (var i = 5; i >= 0; i--) {
@@ -1803,7 +2099,8 @@ function apiAuthors(user) {
       likes: p.likes, dislikes: p.dislikes, evidence: p.evidence, ch: ch, heat: heat, judged: judged, shown: shown, pinned: p.pinned, views: views };
   }).filter(function (x) { return x.judged || x.pinned || x.shown >= 5 || (x.views && x.views.recent >= 3) || CHANNELS.some(function (c) { return x.flags[c] && x.flags[c] !== 'ふつう'; }); })
     .sort(function (a, b) { return (b.heat - a.heat) || (b.judged - a.judged) || (b.shown - a.shown); });
-  return { months: months, channels: CHANNELS, flags: AUTHOR_FLAGS, items: list.slice(0, 80) };
+  // 提案カード（ミュート・注目・フィードに足す など）は新着ではなく著者タブに出す（2026-11-08 北原さん）
+  return { months: months, channels: CHANNELS, flags: AUTHOR_FLAGS, items: list.slice(0, 80), suggest: suggestion_(people, st) };
 }
 
 /** 著者の設定を変える。field: flag（value=フラグ, ch 必須）/ snooze（ch 必須）/ manual / aliases */
@@ -2010,6 +2307,8 @@ function apiAddUrl(user, url) {
     var added = [];
     if (info.author && info.author !== info.source && addFocusKeyword_(info.author, '注目の人')) added.push('人「' + info.author + '」');
     if (info.source && addFocusKeyword_(info.source, '注目の媒体')) added.push('媒体「' + info.source + '」');
+    // YouTube を新着に出さないあいだは、貼ってもチャンネルをフィードに足さない（記録と注目だけ）
+    if (info.isYouTube && !youtubeInFeed_(Store.settings())) info.feedUrl = '';
     var feed = info.feedUrl ? addFeedIfNew_(info.source || info.title, info.feedUrl, info.isYouTube ? 'YouTube' : '手で追加', info.about) : false;
     if (feed) added.push('フィード');
     runLearn();
@@ -2155,8 +2454,14 @@ function sendMorningMail_() {
   var book = sh.getParent();
   var keep = {};
   var all = readArticles_(book);
-  applyAuthorFlags_(all, authorStats_(all, readAuthorSheet_(book))).forEach(function (a) { keep[a.id] = true; });
-  var top = sh.getRange(2, 1, sh.getLastRow() - 1, HEADERS.ARTICLES.length).getValues()
+  var locked = {};
+  applyLocks_(all, settings);
+  all.forEach(function (a) { if (a.locked) locked[a.id] = true; });
+  var ytOn = youtubeInFeed_(settings);
+  applyAuthorFlags_(applyMediaModes_(all, mediaModes_(book)), authorStats_(all, readAuthorSheet_(book))).forEach(function (a) {
+    if (ytOn || a.pinned || channelOf_(a.link) !== 'YouTube') keep[a.id] = true;  // YouTube はメールにも出さない
+  });
+  var top = sh.getRange(2, 1, sh.getLastRow() - 1, Math.min(HEADERS.ARTICLES.length, sh.getMaxColumns())).getValues()
     .filter(function (r) {
       if (!keep[String(r[c['ID']])]) return false;  // ミュート・量を絞る を当てる
       var got = r[c['取得日時']];
@@ -2164,7 +2469,10 @@ function sendMorningMail_() {
       if (isStale_(freshKind_(String(r[c['タイトル']] || ''), String(r[c['ソース']] || '')), pub)) return false;
       return (r[c['ステータス']] === '未読' || r[c['ステータス']] === '') && got instanceof Date && got.getTime() >= since;
     })
-    .sort(function (a, b) { return (Number(b[c['関連度']]) || 0) - (Number(a[c['関連度']]) || 0); })
+    // 🔒（会員限定・読めない）は読める記事の下へ
+    .sort(function (a, b) {
+      return ((locked[String(a[c['ID']])] ? 1 : 0) - (locked[String(b[c['ID']])] ? 1 : 0)) || (Number(b[c['関連度']]) || 0) - (Number(a[c['関連度']]) || 0);
+    })
     .slice(0, 10);
   if (!top.length) return;
   var to = Session.getEffectiveUser().getEmail();
@@ -2177,9 +2485,10 @@ function sendMorningMail_() {
     '<p>' + esc(name) + ' さん、今朝の注目記事です（関連度の高い順）。</p><ol>'];
   var text = [name + ' さん、今朝の注目記事です（関連度の高い順）。', ''];
   top.forEach(function (r) {
-    html.push('<li style="margin-bottom:10px"><a href="' + esc(r[c['URL']]) + '">' + esc(r[c['タイトル']]) + '</a><br>' +
+    var lk = locked[String(r[c['ID']])] ? '🔒 ' : '';
+    html.push('<li style="margin-bottom:10px">' + lk + '<a href="' + esc(r[c['URL']]) + '">' + esc(r[c['タイトル']]) + '</a><br>' +
       '<span style="color:#666;font-size:12px">' + esc(r[c['ソース']]) + '・' + esc(r[c['当たった興味ワード']] || r[c['タグ']] || '興味ワードなし') + '</span></li>');
-    text.push('・' + r[c['タイトル']] + '\n  ' + r[c['URL']]);
+    text.push('・' + lk + r[c['タイトル']] + '\n  ' + r[c['URL']]);
   });
   html.push('</ol>');
   if (url) {

@@ -32,10 +32,14 @@ main{padding:12px 16px;display:grid;gap:12px;max-width:720px;margin:0 auto}
 .slot{position:relative;border-radius:14px;overflow:hidden;transition:height .22s ease, margin .22s ease, opacity .22s ease}
 .under{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;padding:0 22px;
   font-weight:700;font-size:15px;color:#fff;border-radius:14px}
-.under .l,.under .r{opacity:0;transition:opacity .1s}
-.slot.toL .under{background:var(--skip)} .slot.toL .under .r{opacity:1}
-.slot.toR .under{background:var(--later)} .slot.toR .under .l{opacity:1}
+.under .l,.under .r{opacity:0;transition:opacity .1s, transform .12s}
+.slot.toL .under{background:var(--skip)} .slot.toL .under .r{opacity:.55}
+.slot.toR .under{background:var(--later)} .slot.toR .under .l{opacity:.55}
 .slot.toR.done .under{background:var(--done)}
+.under{filter:saturate(.45) brightness(1.08);transition:filter .12s}
+.slot.armed .under{filter:none}
+.slot.armed .under .l,.slot.armed .under .r{opacity:1;transform:scale(1.15)}
+.under small{display:block;font-size:11px;font-weight:400;opacity:.9}
 .card{position:relative;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;
   touch-action:pan-y;will-change:transform}
 .card.anim{transition:transform .2s ease-out}
@@ -43,6 +47,9 @@ main{padding:12px 16px;display:grid;gap:12px;max-width:720px;margin:0 auto}
 .score{color:var(--accent);font-weight:700}
 .card a.title{display:block;color:var(--ink);text-decoration:none;font-weight:700;font-size:16px;margin:4px 0 6px}
 .sum{font-size:14px;color:var(--sub);margin:0 0 8px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.by{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0 2px;font-size:15px;font-weight:700;color:var(--ink)}
+.by::before{content:"✍";font-weight:400;color:var(--accent)}
+.orig{font-size:12px;color:var(--sub);margin:-4px 0 6px}
 .about{font-size:12px;color:var(--sub);background:var(--accent-soft);border-radius:8px;padding:6px 8px;margin:6px 0 2px}
 .words{font-size:13px;margin-bottom:10px}
 .words b{color:var(--accent);font-weight:700}
@@ -74,7 +81,23 @@ main{padding:12px 16px;display:grid;gap:12px;max-width:720px;margin:0 auto}
 #addGo{height:40px;border:0;border-radius:10px;background:var(--accent);color:#fff;font:inherit;font-weight:700;padding:0 16px}
 #addGo:disabled{opacity:.5}
 .pin{font-size:11px;border-radius:6px;padding:0 6px;line-height:20px;background:var(--accent);color:#fff}
+.lock{font-size:11px;border-radius:6px;padding:0 6px;line-height:20px;background:var(--line);color:var(--ink);white-space:nowrap}
+.lockrow{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;color:var(--sub)}
+.lockrow button{height:28px;border:1px solid var(--line);border-radius:8px;background:none;color:var(--sub);font:inherit;font-size:12px;padding:0 10px;cursor:pointer}
+.lockrow button.on{color:var(--ink);border-color:currentColor;font-weight:700}
 .suggest .card{border:2px solid var(--accent)}
+.dot{color:var(--accent);font-size:10px;vertical-align:super}
+.msrc{border:1px solid var(--line);background:none;color:var(--ink);font:inherit;font-size:12px;border-radius:999px;padding:0 8px;line-height:20px;cursor:pointer}
+.msrc.m-up{border-color:var(--done);color:var(--done)} .msrc.m-less{border-color:var(--later);color:var(--later)}
+.mpick{display:flex;gap:6px;margin:8px 0 2px}
+.mpick button,.mrow .mpick button{flex:1;height:34px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--ink);font:inherit;font-size:13px;cursor:pointer}
+.mpick button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+.mpick button.on[data-mset="ミュート"]{background:#c62828;border-color:#c62828}
+.mrow{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.mrow .mh{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-weight:700}
+.mrow .mh small{font-weight:400;color:var(--sub)}
+.mrow .mi{font-size:12px;color:var(--sub);margin:2px 0 0}
+.mrow.off{opacity:.55}
 .sg-head{font-size:12px;font-weight:700;color:var(--accent)}
 .sg-text{margin:6px 0 4px;font-size:15px}
 .sg-hint{font-size:11px;color:var(--sub);margin:8px 0 0}
@@ -118,7 +141,7 @@ main{padding:12px 16px;display:grid;gap:12px;max-width:720px;margin:0 auto}
 <header>
   <div class="top"><h1>RSS学習ログ<small id="who"></small></h1><button id="addBtn" type="button">＋ URLを貼る</button></div>
   <form id="addForm" hidden>
-    <p>気になった記事やYouTubeのURLを貼ると、読んだ記事として「興味5・重要5」で残し、その人と媒体を注目に加えて興味の重みを更新します。</p>
+    <p>気になった記事や、観て残したいYouTubeのURLを貼ると、読んだ記事として「興味5・重要5」で残し、その人と媒体を注目に加えて興味の重みを更新します。</p>
     <div class="row"><input id="addUrl" type="url" inputmode="url" placeholder="https://..." autocomplete="off"><button id="addGo" type="submit">追加</button></div>
   </form>
   <p class="hint" id="hint"></p>
@@ -126,7 +149,8 @@ main{padding:12px 16px;display:grid;gap:12px;max-width:720px;margin:0 auto}
     <button data-v="new" class="on">新着 <span id="cNew"></span></button>
     <button data-v="later">あとで <span id="cLater"></span></button>
     <button data-v="rated">評価済み</button>
-    <button data-v="authors">著者</button>
+    <button data-v="media">媒体</button>
+    <button data-v="authors">著者 <span id="cAuth" class="dot"></span></button>
   </nav>
 </header>
 <main id="list"><div class="msg">読み込み中…</div></main>
@@ -143,12 +167,14 @@ var swiped = false;    // スワイプ直後のリンクの誤タップを止め
 // 画面ごとのスワイプ。右＝前向き、左＝興味なし。
 var SWIPE = {
   new:   { right: { status: 'あとで読む', label: 'あとで読む' }, left: { status: '興味なし', label: '興味なし' } },
-  later: { right: { status: '完了', label: '読んだ' },        left: { status: '興味なし', label: '興味なし' } }
+  // あとで: 右＝興味はあるが読まない（興味4・重要2を自動で付けて片付ける。数字を付けてあればそのまま）
+  later: { right: { status: '完了', label: '興味あり・読まない', interest: 4, importance: 2 }, left: { status: '興味なし', label: '興味なし' } }
 };
 var HINTS = {
   new: '右へスワイプ＝あとで読む　左へ＝興味なし',
-  later: '右へスワイプ＝読んだ　左へ＝興味なし',
+  later: '右へ＝興味あり・読まない（興味4・重要2が付きます）　左へ＝興味なし　自分で付けたいときは数字を押す',
   rated: 'ここでは数字を直せます',
+  media: '媒体ごとに 増やす・ふつう・減らす（1日1本）・ミュート（出さない）を選べます。カードの媒体名を押しても変えられます',
   authors: '最近ハマっている順。色は月ごとの当たり（緑＝刺さった、赤＝外れ、灰＝見ただけ、青＝YouTubeで見た本数）'
 };
 var suggest = null;
@@ -173,19 +199,66 @@ function toast(text, withUndo){
   $('undo').style.display = withUndo ? '' : 'none';
   $('toast').classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(function(){ $('toast').classList.remove('show'); lastMove = null; }, withUndo ? 4000 : 3800);
+  toastTimer = setTimeout(function(){ $('toast').classList.remove('show'); lastMove = null; }, withUndo ? 7000 : 3800);
 }
 
 function showCounts(){
+  $('cAuth').textContent = suggest ? '●' : '';
   $('cNew').textContent = counts.new ? '(' + counts.new + ')' : '';
   $('cLater').textContent = counts.later ? '(' + counts.later + ')' : '';
+}
+
+// ---- 媒体の扱い（増やす・ふつう・減らす・ミュート） ----
+var MODES = ['増やす', 'ふつう', '減らす', 'ミュート'];
+var mediaData = null;
+function mcls(m){ return m === '増やす' ? ' m-up' : (m === '減らす' || m === 'ミュート') ? ' m-less' : ''; }
+function pickHtml(name, cur){
+  return '<div class="mpick" data-mname="' + esc(name) + '">' + MODES.map(function(m){
+    return '<button data-mset="' + m + '" class="' + (m === (cur || 'ふつう') ? 'on' : '') + '">' + m + '</button>'; }).join('') + '</div>';
+}
+function renderMedia(){
+  var d = mediaData;
+  if (!d || !d.items.length) { $('list').innerHTML = '<div class="empty">媒体がありません</div>'; return; }
+  $('list').innerHTML = d.items.map(function(x){
+    return '<div class="mrow' + (x.enabled ? '' : ' off') + '"><div class="mh">' + esc(x.name) + ' ' + repBadge(x.rep, '評価') +
+      '<small>未読 ' + x.unread + '・全 ' + x.total + (x.enabled ? '' : '・停止中') + '</small></div>' +
+      (x.intro ? '<p class="mi">' + esc(x.intro) + '</p>' : '') + pickHtml(x.name, x.mode) + '</div>';
+  }).join('');
+}
+/** 扱いを変える。画面はすぐ変え、保存は裏。ミュート・減らすは新着からその場で外す。 */
+function setMedia(name, mode){
+  var before = null;
+  if (mediaData) mediaData.items.forEach(function(x){ if (x.name === name) { before = x.mode; x.mode = mode; } });
+  items.forEach(function(a){ if (a.source === name) { if (before === null) before = a.mmode || 'ふつう'; a.mmode = mode; } });
+  var gone = 0;
+  if (view === 'new' && (mode === 'ミュート' || mode === '減らす')) {
+    var keepOne = mode === '減らす';
+    items.slice().forEach(function(a){
+      if (a.source !== name || a.pinned) return;
+      if (keepOne) { keepOne = false; return; }
+      var i = find(a.id); if (i !== -1) { items.splice(i, 1); removeCard(a.id, 'left'); gone++; }
+    });
+    counts.new = Math.max(0, counts.new - gone); showCounts();
+  }
+  if (view === 'media') renderMedia();
+  else items.forEach(function(a){ if (a.source === name) { var s = slotOf(a.id); if (s && s.parentNode) s.outerHTML = cardHtml(a); } });
+  toast(name + 'を「' + mode + '」にしました' + (gone ? '（新着から' + gone + '件外しました）' : ''), false);
+  google.script.run.withSuccessHandler(function(){})
+    .withFailureHandler(function(e){ toast('保存できませんでした: ' + e.message, false); load(); })
+    .apiSetMedia(USER, name, mode);
 }
 
 function load(){
   $('hint').textContent = HINTS[view];
   $('list').innerHTML = '<div class="msg">読み込み中…</div>';
+  if (view === 'media') {
+    google.script.run.withSuccessHandler(function(res){ mediaData = res; renderMedia(); })
+      .withFailureHandler(function(e){ $('list').innerHTML = '<div class="msg">読み込めませんでした: ' + esc(e.message) + '</div>'; })
+      .apiMedia(USER);
+    return;
+  }
   if (view === 'authors') {
-    google.script.run.withSuccessHandler(function(res){ authorData = res; renderAuthors(); })
+    google.script.run.withSuccessHandler(function(res){ authorData = res; suggest = res.suggest || null; showCounts(); renderAuthors(); })
       .withFailureHandler(function(e){ $('list').innerHTML = '<div class="msg">読み込めませんでした: ' + esc(e.message) + '</div>'; })
       .apiAuthors(USER);
     return;
@@ -209,12 +282,15 @@ function rateRow(a, field, label){
 function cardHtml(a){
   var sw = SWIPE[view];
   return '<div class="slot' + (a.stale ? ' isStale' : '') + '" data-id="' + esc(a.id) + '">' +
-    (sw ? '<div class="under"><span class="l">' + sw.right.label + '</span><span class="r">' + sw.left.label + '</span></div>' : '') +
+    (sw ? '<div class="under"><span class="l">' + sw.right.label + ' →<small>離すと決定</small></span><span class="r">← ' + sw.left.label + '<small>離すと決定</small></span></div>' : '') +
     '<article class="card">' +
-      '<div class="meta"><span>' + esc(a.source) + '</span>' + repBadge(a.src, '媒体') + day(a) + (a.score ? '<span class="score">関連度 ' + a.score + '</span>' : '') + '</div>' +
-      (a.about || a.author ? '<div class="about">' + (a.author && a.author !== a.source ? esc(a.author) + ' ' + repBadge(a.who, '人') + '／' : '') + esc(a.about || '発信元の紹介はまだありません') + '</div>' : '') +
+      '<div class="meta"><button class="msrc' + mcls(a.mmode) + '" data-media="' + esc(a.source) + '">' + esc(a.source) + (a.mmode && a.mmode !== 'ふつう' ? '・' + a.mmode : '') + ' ▾</button>' + repBadge(a.src, '媒体') + day(a) + (a.score ? '<span class="score">関連度 ' + a.score + '</span>' : '') + '</div>' +
+      (a.author && a.author !== a.source ? '<div class="by">' + esc(a.author) + ' ' + repBadge(a.who, '人') + '</div>' : '') +
+      (a.about ? '<div class="about">' + esc(a.about) + '</div>' : '') +
       (a.pinned ? '<span class="pin">自分で追加</span>' : '') +
+      (a.lock === '会員限定' ? '<span class="lock">🔒 会員限定かも</span>' : a.lock === '読めない' ? '<span class="lock">🔒 読めなかった</span>' : '') +
       '<a class="title" href="' + esc(a.link) + '" target="_blank" rel="noopener">' + esc(a.title) + '</a>' +
+      (a.original ? '<div class="orig">原題: ' + esc(a.original) + '</div>' : '') +
       (a.summary ? '<p class="sum">' + esc(a.summary) + '</p>' : '') +
       '<div class="words"><b>当たった興味ワード</b> ' + esc(a.words || a.tags || 'なし') + '</div>' +
       rateRow(a, '興味度', '興味') + rateRow(a, '重要度', '重要') +
@@ -222,6 +298,11 @@ function cardHtml(a){
         '<button class="skip ' + (a.status === '興味なし' ? 'on' : '') + '" data-s="興味なし">興味なし</button>' +
         '<button class="later ' + (a.status === 'あとで読む' ? 'on' : '') + '" data-s="あとで読む">あとで読む</button>' +
         '<button class="done ' + (a.status === '完了' ? 'on' : '') + '" data-s="完了">読んだ</button>' +
+      '</div>' +
+      // 中身が読めたかは興味とは別に残す（興味の記録には入れない）
+      '<div class="lockrow">中身は' +
+        '<button class="' + (a.lockMark === '読めた' ? 'on' : '') + '" data-lk="読めた">読めた</button>' +
+        '<button class="' + (a.lockMark === '読めない' ? 'on' : '') + '" data-lk="読めない">🔒 読めない</button>' +
       '</div>' +
     '</article></div>';
 }
@@ -277,7 +358,7 @@ function refreshBadges(a){
     var s = slotOf(b.id); if (!s) return;
     var tmp = document.createElement('div'); tmp.innerHTML = cardHtml(b);
     var fresh = tmp.firstChild;
-    ['.meta', '.about'].forEach(function(sel){
+    ['.meta', '.by'].forEach(function(sel){
       var o = s.querySelector(sel), n = fresh.querySelector(sel);
       if (o && n) o.innerHTML = n.innerHTML;
     });
@@ -285,13 +366,13 @@ function refreshBadges(a){
 }
 
 function suggestHtml(){
-  if (!suggest || view !== 'new') return '';
+  if (!suggest || view !== 'authors') return '';
   var yes = suggest.type === 'ミュート' ? 'ミュートする' : suggest.type === '量を絞る' ? '1日1本にする' : suggest.type === 'フィードに足す' ? 'フィードに足す' : '注目にする';
   return '<div class="slot suggest" data-id="__suggest"><div class="under"><span class="l">' + yes + '</span><span class="r">今はしない</span></div>' +
     '<article class="card"><div class="sg-head">提案 ・ ' + esc(suggest.person) + ' × ' + esc(suggest.ch) + '</div>' +
     '<p class="sg-text">' + esc(suggest.reason) + '</p>' +
     '<div class="acts"><button data-sg="no">今はしない</button><button class="sg-yes" data-sg="yes">' + yes + '</button></div>' +
-    '<p class="sg-hint">右へスワイプ＝' + yes + '　左へ＝今はしない（30日は聞きません）</p></article></div>';
+    '<p class="sg-hint">今はしない を押すと、30日は聞きません</p></article></div>';
 }
 function answerSuggest(yes, dir){
   var sg = suggest; if (!sg) return;
@@ -299,7 +380,9 @@ function answerSuggest(yes, dir){
   removeCard('__suggest', dir);
   var feed = sg.type === 'フィードに足す';
   toast(!yes ? '30日は聞きません' : feed ? sg.person + 'をフィードに足しました（次の取得から新着に出ます）' : sg.person + '（' + sg.ch + '）を「' + sg.type + '」にしました', false);
-  var run = google.script.run.withSuccessHandler(function(){ if (yes) load(); })
+  showCounts();
+  // 著者の一覧だけ、フラグを反映するため裏で読み直す（新着は読み直さない）
+  var run = google.script.run.withSuccessHandler(function(){ if (yes && !feed && view === 'authors') load(); })
     .withFailureHandler(function(e){ toast('保存できませんでした: ' + e.message, false); });
   if (yes && feed) run.apiAddChannelFeed(USER, sg.person, sg.channelId);
   else run.apiSetAuthor(USER, sg.person, yes ? 'flag' : 'snooze', yes ? sg.type : '', sg.ch);
@@ -346,18 +429,19 @@ function renderAuthors(){
   var d = authorData;
   if (!d || !d.items.length) { $('list').innerHTML = '<div class="empty">まだ著者がいません。仕分けやURLの貼り付けを続けると出てきます</div>'; return; }
   var m = d.months.map(function(x){ return Number(x.slice(5)); });
-  $('list').innerHTML = '<div class="mhead"><span class="ach">月</span><span class="strip">' + m.map(function(x){ return '<em>' + x + '</em>'; }).join('') + '</span></div>' +
+  $('list').innerHTML = suggestHtml() + '<div class="mhead"><span class="ach">月</span><span class="strip">' + m.map(function(x){ return '<em>' + x + '</em>'; }).join('') + '</span></div>' +
     d.items.map(authorHtml).join('');
 }
 function authorOf(el){ var c = el.closest('.author'); if (!c) return null; var n = c.dataset.name; return authorData.items.filter(function(x){ return x.name === n; })[0]; }
 
 function render(){
   if (view === 'authors') return renderAuthors();
-  if (!items.length && !(suggest && view === 'new')) {
+  if (view === 'media') return renderMedia();
+  if (!items.length) {
     $('list').innerHTML = '<div class="empty">' + (view === 'new' ? '未読の記事はありません' : view === 'later' ? '「あとで読む」はありません' : 'まだ評価した記事はありません') + '</div>';
     return;
   }
-  $('list').innerHTML = suggestHtml() + items.map(cardHtml).join('');
+  $('list').innerHTML = items.map(cardHtml).join('');
 }
 
 function find(id){ for (var i = 0; i < items.length; i++) if (items[i].id === id) return i; return -1; }
@@ -377,48 +461,79 @@ function leavesView(status){
   return false;
 }
 
-/** 仕分け。画面はすぐ動かし、保存はうしろで送る。失敗したら元に戻す。 */
-function triage(a, status, dir){
-  var prevStatus = a.status, prevInterest = a.interest;
-  var interest = null;
+/** 仕分け。画面はすぐ動かし、保存はうしろで送る（続けてスワイプしても1回にまとめて送る）。 */
+function triage(a, status, dir, auto){
+  var prev = { status: a.status, interest: a.interest, importance: a.importance };
+  var interest = null, importance = null;
   if (status === '興味なし' && !a.interest) { interest = 1; }          // 学習で重みが下がるよう最低点を付ける
-  if (prevStatus === '興味なし' && status !== '興味なし' && prevInterest === 1) { interest = ''; }
-  a.status = status; if (interest !== null) a.interest = interest === '' ? 0 : interest;
-  countMove(prevStatus, status, 1);
-  rejudge(a, prevStatus, prevInterest);
+  if (prev.status === '興味なし' && status !== '興味なし' && prev.interest === 1) { interest = ''; }
+  if (auto && auto.interest && !a.interest) interest = auto.interest;
+  if (auto && auto.importance && !a.importance) importance = auto.importance;
+  a.status = status;
+  if (interest !== null) a.interest = interest === '' ? 0 : interest;
+  if (importance !== null) a.importance = importance;
+  countMove(prev.status, status, 1);
+  rejudge(a, prev.status, prev.interest);
   var index = find(a.id);
-  var label = status === '興味なし' ? '興味なしにしました' : status === 'あとで読む' ? 'あとで読むへ' : status === '完了' ? '読んだにしました' : '未読に戻しました';
-  if (leavesView(status)) { removeCard(a.id, dir); items.splice(index, 1); }
+  var label = status === '興味なし' ? '興味なしにしました'
+    : status === 'あとで読む' ? 'あとで読むへ'
+    : status === '完了' && importance !== null ? '興味あり・読まないで片付けました（興味' + a.interest + '・重要' + a.importance + '）'
+    : status === '完了' ? '読んだにしました' : '未読に戻しました';
+  var leaves = leavesView(status);
+  if (leaves) { removeCard(a.id, dir); items.splice(index, 1); }
   else { var s = slotOf(a.id); if (s) s.outerHTML = cardHtml(a); }
-  lastMove = { a: a, index: index, prevStatus: prevStatus, prevInterest: prevInterest, left: leavesView(status) };
+  lastMove = { a: a, index: index, prev: prev, left: leaves };
   toast(label, true);
-  send(a, status, interest, function(){
+  queueSave({ row: a.row, id: a.id, status: status, interest: interest, importance: importance }, function(){
+    // 保存できなかったときだけ、カードを元の場所に戻す
     var s0 = a.status, i0 = a.interest;
-    a.status = prevStatus; a.interest = prevInterest; countMove(prevStatus, status, -1); rejudge(a, s0, i0);
-    if (leavesView(status) && find(a.id) === -1) { items.splice(Math.min(index, items.length), 0, a); }
+    countMove(prev.status, a.status, -1);
+    a.status = prev.status; a.interest = prev.interest; a.importance = prev.importance; rejudge(a, s0, i0);
+    if (leaves && find(a.id) === -1) { items.splice(Math.min(index, items.length), 0, a); }
     render();
   });
 }
 
-function send(a, status, interest, onFail){
-  google.script.run.withSuccessHandler(function(){})
-    .withFailureHandler(function(e){ onFail(); toast('保存できませんでした: ' + e.message, false); })
-    .apiTriage(USER, a.row, a.id, status, interest);
+// 保存の列。送っている間に来た仕分けはためておき、終わったらまとめて1回で送る。
+// 一時的な失敗は1回だけ送り直す（画面は動かさない）。
+var saveQ = [], saving = false;
+function queueSave(op, onFail){ saveQ.push({ op: op, onFail: onFail, tries: 0 }); flushSaves(); }
+function flushSaves(){
+  if (saving || !saveQ.length) return;
+  saving = true;
+  var batch = saveQ.splice(0, saveQ.length);
+  google.script.run.withSuccessHandler(function(failed){
+    saving = false;
+    (failed || []).forEach(function(f){
+      batch.filter(function(x){ return x.op.id === f.id; }).forEach(function(x){ x.onFail && x.onFail(); });
+      toast('保存できませんでした: ' + f.reason, false);
+    });
+    flushSaves();
+  }).withFailureHandler(function(e){
+    saving = false;
+    var retry = batch.filter(function(x){ return x.tries < 1; });
+    batch.filter(function(x){ return x.tries >= 1; }).forEach(function(x){ x.onFail && x.onFail(); });
+    if (retry.length < batch.length) toast('保存できませんでした: ' + e.message, false);
+    retry.forEach(function(x){ x.tries++; });
+    saveQ = retry.concat(saveQ);
+    setTimeout(flushSaves, 1500);
+  }).apiTriageBatch(USER, batch.map(function(x){ return x.op; }));
 }
 
 function undo(){
   var m = lastMove; if (!m) return; lastMove = null;
   $('toast').classList.remove('show');
   var a = m.a, nowStatus = a.status;
-  var interest = m.prevInterest === a.interest ? null : (m.prevInterest || '');
+  var interest = m.prev.interest === a.interest ? null : (m.prev.interest || '');
+  var importance = m.prev.importance === a.importance ? null : (m.prev.importance || '');
   var i0 = a.interest;
-  a.status = m.prevStatus; a.interest = m.prevInterest;
+  a.status = m.prev.status; a.interest = m.prev.interest; a.importance = m.prev.importance;
   rejudge(a, nowStatus, i0);
-  countMove(nowStatus, m.prevStatus, 1);
+  countMove(nowStatus, m.prev.status, 1);
   if (m.left && find(a.id) === -1) items.splice(Math.min(m.index, items.length), 0, a);
   render();
   var s = slotOf(a.id); if (s) s.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  send(a, m.prevStatus, interest, function(){ load(); });
+  queueSave({ row: a.row, id: a.id, status: m.prev.status, interest: interest, importance: importance }, function(){ load(); });
 }
 $('undo').addEventListener('click', undo);
 
@@ -460,7 +575,20 @@ function removeCard(id, dir){
 
 // ボタン（スワイプできない人・PC向け）
 $('list').addEventListener('click', function(ev){
+  var mb = ev.target.closest('button[data-mset]');
+  if (mb) { var mp = mb.closest('.mpick'); setMedia(mp.dataset.mname, mb.dataset.mset); var card0 = mb.closest('.card'); if (card0) { var pk = card0.querySelector('.mpick'); if (pk && view !== 'media') pk.remove(); } return; }
+  var ms = ev.target.closest('button[data-media]');
+  if (ms) {
+    var card = ms.closest('.card'), open = card.querySelector('.mpick');
+    if (open) { open.remove(); return; }
+    var a0 = items[find(ms.closest('.slot').dataset.id)];
+    ms.closest('.meta').insertAdjacentHTML('afterend', pickHtml(ms.dataset.media, a0 ? a0.mmode : 'ふつう'));
+    return;
+  }
+  if (view === 'media') return;
   if (view === 'authors') {
+    var sgb = ev.target.closest('button[data-sg]');
+    if (sgb) { answerSuggest(sgb.dataset.sg === 'yes', sgb.dataset.sg === 'yes' ? 'right' : 'left'); return; }
     var x = authorOf(ev.target); if (!x) return;
     if (ev.target.closest('select,textarea,input,a')) return;
     if (ev.target.closest('[data-save]')) {
@@ -479,7 +607,21 @@ $('list').addEventListener('click', function(ev){
   var b = ev.target.closest('button'); if (!b) return;
   if (b.dataset.sg) { answerSuggest(b.dataset.sg === 'yes', b.dataset.sg === 'yes' ? 'right' : 'left'); return; }
   var slot = b.closest('.slot'); var a = items[find(slot.dataset.id)]; if (!a) return;
-  if (b.dataset.f) {
+  if (b.dataset.lk) {
+    var prev = a.lockMark || '';
+    var setLock = function(m){
+      a.lockMark = m;
+      a.lock = m || (a.lockGuess ? '会員限定' : '');
+      var s2 = $('list').querySelector('.slot[data-id="' + a.id.replace(/"/g, '\\"') + '"]');
+      if (s2) s2.outerHTML = cardHtml(a);
+    };
+    var mark = prev === b.dataset.lk ? '' : b.dataset.lk;  // 同じものをもう一度押すと取り消し
+    setLock(mark);
+    toast(!mark ? '取り消しました' : mark === '読めない' ? '読めなかった記事として残しました（興味の記録はそのまま）' : '読めた記事として残しました', false);
+    google.script.run.withSuccessHandler(function(){})
+      .withFailureHandler(function(e){ setLock(prev); toast('保存できませんでした: ' + e.message, false); })
+      .apiMarkLock(USER, a.row, a.id, mark);
+  } else if (b.dataset.f) {
     var key = b.dataset.f === '興味度' ? 'interest' : 'importance';
     var before = a[key], v = Number(b.dataset.v);
     var ib = a.interest;
@@ -506,39 +648,53 @@ $('list').addEventListener('change', function(ev){
     .apiSetAuthor(USER, x.name, 'flag', sel.value, ch);
 });
 
-// スワイプ。縦のスクロールは邪魔しない（横に動いたと分かってから動かす）
+// スワイプ。縦のスクロールは邪魔しない（はっきり横に動いたと分かってから動かす）
+// ・ボタンやリンクの上から始めてもスワイプできる（動かしたら押したことにしない）
+// ・決まる位置を越えると色が濃くなり、文字が大きくなる（Androidは軽く振動）。戻せば取り消し
 (function(){
   var st = null;
   var list = $('list');
+  function threshold(slot){ return Math.max(72, Math.min(140, slot.offsetWidth * 0.25)); }
   list.addEventListener('touchstart', function(ev){
     if (!SWIPE[view] || ev.touches.length !== 1) return;
-    if (ev.target.closest('button')) return;
+    if (ev.target.closest('select,textarea,input')) return;
     var slot = ev.target.closest('.slot'); if (!slot) return;
     var t = ev.touches[0];
-    st = { slot: slot, card: slot.querySelector('.card'), x: t.clientX, y: t.clientY, dx: 0, mode: null, t: Date.now() };
+    st = { slot: slot, card: slot.querySelector('.card'), x: t.clientX, y: t.clientY, dx: 0, mode: null,
+           t: Date.now(), lastX: t.clientX, lastT: Date.now(), v: 0, armed: false, th: threshold(slot) };
   }, { passive: true });
   list.addEventListener('touchmove', function(ev){
     if (!st) return;
     var t = ev.touches[0], dx = t.clientX - st.x, dy = t.clientY - st.y;
     if (!st.mode) {
-      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
-      st.mode = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
+      // 斜めの指の動きはスクロール扱い。横は縦の2倍以上動いたときだけ
+      if (Math.abs(dx) < 14 && Math.abs(dy) < 10) return;
+      st.mode = Math.abs(dx) >= 14 && Math.abs(dx) > Math.abs(dy) * 2 ? 'x' : 'y';
       if (st.mode === 'x') st.card.classList.remove('anim');
+      if (st.mode === 'y') { st = null; return; }
     }
-    if (st.mode !== 'x') return;
     ev.preventDefault();
+    var now = Date.now();
+    st.v = (t.clientX - st.lastX) / Math.max(1, now - st.lastT); st.lastX = t.clientX; st.lastT = now;
     st.dx = dx;
-    st.card.style.transform = 'translateX(' + dx + 'px)';
+    st.card.style.transform = 'translateX(' + dx + 'px) rotate(' + (dx / 60) + 'deg)';
     st.slot.classList.toggle('toR', dx > 0); st.slot.classList.toggle('toL', dx < 0);
     st.slot.classList.toggle('done', view === 'later');
+    var armed = Math.abs(dx) >= st.th;
+    if (armed !== st.armed) {
+      st.armed = armed; st.slot.classList.toggle('armed', armed);
+      if (armed && navigator.vibrate) { try { navigator.vibrate(12); } catch (e) {} }
+    }
   }, { passive: false });
   function end(){
     if (!st) return;
     var s = st; st = null;
     if (s.mode !== 'x') return;
-    swiped = true; setTimeout(function(){ swiped = false; }, 400);
-    var w = s.slot.offsetWidth, speed = Math.abs(s.dx) / Math.max(1, Date.now() - s.t);
-    var go = Math.abs(s.dx) > w * 0.28 || (Math.abs(s.dx) > 40 && speed > 0.5);
+    swiped = true; setTimeout(function(){ swiped = false; }, 450);
+    // 決まる位置を越えて離す、または同じ向きに素早くはじく（戻しかけている途中は決めない）
+    var flick = Math.abs(s.dx) > 50 && Math.abs(s.v) > 0.6 && (s.v > 0) === (s.dx > 0);
+    var go = s.armed || flick;
+    s.slot.classList.remove('armed');
     if (!go) {
       s.card.classList.add('anim'); s.card.style.transform = '';
       setTimeout(function(){ s.slot.classList.remove('toL', 'toR'); }, 200);
@@ -547,12 +703,18 @@ $('list').addEventListener('change', function(ev){
     var dir = s.dx > 0 ? 'right' : 'left';
     if (s.slot.dataset.id === '__suggest') { answerSuggest(dir === 'right', dir); return; }
     var a = items[find(s.slot.dataset.id)]; if (!a) return;
-    triage(a, SWIPE[view][dir].status, dir);
+    var conf = SWIPE[view][dir];
+    triage(a, conf.status, dir, conf);
   }
   list.addEventListener('touchend', end);
-  list.addEventListener('touchcancel', end);
-  // リンクを押したつもりがスワイプだったときは開かない
-  list.addEventListener('click', function(ev){ if (ev.target.closest('a') && swiped) { ev.preventDefault(); swiped = false; } }, true);
+  list.addEventListener('touchcancel', function(){
+    if (!st) return; var s = st; st = null;
+    s.slot.classList.remove('armed', 'toL', 'toR'); s.card.classList.add('anim'); s.card.style.transform = '';
+  });
+  // スワイプのつもりでリンクやボタンに触れていたときは、押したことにしない
+  list.addEventListener('click', function(ev){
+    if (swiped && ev.target.closest('a,button')) { ev.preventDefault(); ev.stopPropagation(); swiped = false; }
+  }, true);
 })();
 
 document.querySelectorAll('nav button').forEach(function(b){
